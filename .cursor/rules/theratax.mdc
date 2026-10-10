@@ -1,0 +1,31 @@
+---
+description: Rules for the theratax project
+alwaysApply: true
+---
+
+# Stack
+- NestJS 12 as an ES module ("type": "module") + TypeScript strict on Node.js 24
+- PostgreSQL via Prisma 7 only, accessed through the injected PrismaService — never `new PrismaClient` in another file
+- Validation with class-validator + class-transformer via DTO classes (never use an interface as a body). Global ValidationPipe uses whitelist and forbidNonWhitelisted
+
+# File structure
+- src/<domain>/ one folder per business domain (auth, transactions, tax-engine, expense-categories, upload, invoices), containing *.module.ts, *.controller.ts, *.service.ts and dto/. /users/me lives in auth
+- src/prisma/ contains PrismaModule (global) and PrismaService
+- src/generated/prisma/ is Prisma-generated code — never edit it by hand
+- docs/api-spec.md is the API contract — every endpoint's response must match this file's shape. Phase 2 listed there is out of scope
+
+# Coding rules
+- Imports of project files must always end in .js (e.g. './transactions.service.js'), even though the actual file is .ts
+- Use `import type` for interfaces/types that appear in the signature of a method or constructor that has a decorator
+- Never use `any`, never use `as` to silence a type error, never use the non-null assertion (!), and every decorated parameter must declare a type
+- Errors returned to the client must be thrown as Nest's HttpException (NotFoundException, BadRequestException, UnauthorizedException, ForbiddenException, ConflictException) — never throw a plain Error
+- Name files kebab-case.<role>.ts, e.g. transactions.controller.ts, create-transaction.dto.ts
+- Responses must be plain JSON (number, string, array, object) — never send a Date or a Decimal. Money is integer pence. Civil dates are YYYY-MM-DD. Timestamps are ISO 8601
+- The tax engine is a pure function with unit tests. HTTP handlers load data and call it; they do not contain the arithmetic
+
+# Scope
+- Never install a new dependency unless asked
+- Keep changes limited to what the request's goal needs — never touch unrelated files
+- Never create index.ts or a barrel file
+- Never write a comment that just explains what the code already says
+- Never run prisma migrate, db push, generate, or docker yourself — tell the user to run it
