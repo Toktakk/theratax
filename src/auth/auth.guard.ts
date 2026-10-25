@@ -1,0 +1,40 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import type { CanActivate, ExecutionContext } from '@nestjs/common';
+import type { Request } from 'express';
+import { AuthService } from './auth.service.js';
+import type { PublicUser } from './public-user.js';
+
+export interface AuthenticatedRequest extends Request {
+  user?: PublicUser;
+}
+
+function readBearer(header: string | undefined): string | null {
+  if (header === undefined) {
+    return null;
+  }
+  const [scheme, token] = header.split(' ');
+  if (scheme !== 'Bearer' || token === undefined || token.length === 0) {
+    return null;
+  }
+  return token;
+}
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private readonly authService: AuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const header = request.headers.authorization;
+    const token = readBearer(typeof header === 'string' ? header : undefined);
+    if (token === null) {
+      throw new UnauthorizedException();
+    }
+    const user = await this.authService.userForToken(token);
+    if (user === null) {
+      throw new UnauthorizedException();
+    }
+    request.user = user;
+    return true;
+  }
+}
