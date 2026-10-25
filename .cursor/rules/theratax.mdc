@@ -20,7 +20,7 @@ alwaysApply: true
 - Never use `any`, never use `as` to silence a type error, never use the non-null assertion (!), and every decorated parameter must declare a type
 - Errors returned to the client must be thrown as Nest's HttpException (NotFoundException, BadRequestException, UnauthorizedException, ForbiddenException, ConflictException) — never throw a plain Error
 - Name files kebab-case.<role>.ts, e.g. transactions.controller.ts, create-transaction.dto.ts
-- Responses must be plain JSON (number, string, array, object) — never send a Date or a Decimal. Money is integer pence. Civil dates are YYYY-MM-DD. Timestamps are ISO 8601
+- Responses must be plain JSON (number, string, array, object) — never send a Date or a Decimal. Money is integer pence. Civil dates are DD-MM-YYYY. Timestamps are ISO 8601
 - The tax engine is a pure function with unit tests. HTTP handlers load data and call it; they do not contain the arithmetic
 
 # Scope

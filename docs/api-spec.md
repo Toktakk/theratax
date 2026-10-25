@@ -38,9 +38,9 @@ Logging a swipe is one request (`POST /transactions`). Attaching a photo is a se
 
 Money is an integer number of pence. Mileage for 2026–27 is 55p, and the tax engine is a pure function with unit tests (proposal: tax logic stays isolated from HTTP). A float would make those totals ambiguous.
 
-Dates that are a civil day (`occurredOn`, `issuedOn`, `paidOn`, tax-year bounds) are `YYYY-MM-DD`. Timestamps (`onboardedAt`, `expiresAt`) are ISO 8601. "Today" and the default tax year use the calendar date in `Europe/London`. The tax year turns on 6 April, which is a UK civil date; UTC would pick the wrong day around midnight.
+Dates that are a civil day (`occurredOn`, `issuedOn`, `paidOn`, tax-year bounds) are `DD-MM-YYYY`. Timestamps (`onboardedAt`, `expiresAt`) are ISO 8601. "Today" and the default tax year use the calendar date in `Europe/London`. The tax year turns on 6 April, which is a UK civil date; UTC would pick the wrong day around midnight.
 
-`taxYear=2026` means 6 April 2026 through 5 April 2027 (`2026-04-06` through `2027-04-05`). This spec implements that year only. Any other `taxYear` is `400`. `occurredOn`, `issuedOn`, and `paidOn` must fall inside that same window; a date outside it is `400` with message `"Date is outside the 2026-27 tax year"`.
+`taxYear=2026` means 6 April 2026 through 5 April 2027 (`06-04-2026` through `05-04-2027`). This spec implements that year only. Any other `taxYear` is `400`. `occurredOn`, `issuedOn`, and `paidOn` must fall inside that same window; a date outside it is `400` with message `"Date is outside the 2026-27 tax year"`.
 
 ## Auth and User (proposal: User)
 
@@ -58,7 +58,7 @@ interface User {
   id: number;
   email: string;
   name: string;
-  practiceType: "mobile" | "clinic" | "mixed" | null;
+  practiceType: "mobile" | "fixedLocation" | "mixed" | null;
   expenseMethod: "flat_rate" | "actual_cost" | null;
   onboardedAt: string | null; // always present; null until onboarding
 }
@@ -86,7 +86,7 @@ A login that does not match is `401`. The message does not say whether the email
 
 ```ts
 interface OnboardingRequest {
-  practiceType: "mobile" | "clinic" | "mixed";
+  practiceType: "mobile" | "fixedLocation" | "mixed";
   expenseMethod: "flat_rate" | "actual_cost";
 }
 ```
@@ -154,7 +154,7 @@ Parking, tolls, and train fares are claimable on top of mileage ([same GOV.UK ve
 interface Transaction {
   id: number;
   type: "income" | "expense";
-  occurredOn: string;          // YYYY-MM-DD
+  occurredOn: string;          // DD-MM-YYYY
   amountPence: number;         // always present; mileage is computed
   hasReceipt: boolean;         // always present, so the feed can show the camera state
   note?: string;               // omitted when empty
@@ -294,8 +294,8 @@ The swipe remains the path for cash or a transfer that never had an invoice. The
 ```ts
 interface TaxSummary {
   taxYear: string;             // "2026-27"
-  periodStart: string;         // "2026-04-06"
-  periodEnd: string;           // "2027-04-05"
+  periodStart: string;         // "06-04-2026"
+  periodEnd: string;           // "05-04-2027"
   expenseMethod: "flat_rate" | "actual_cost";
   incomePence: number;
   allowableExpensesPence: number;

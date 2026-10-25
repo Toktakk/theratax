@@ -11,3 +11,101 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum PracticeType {
+  mobile
+  fixedLocation
+  mixed
+}
+
+enum ExpenseMethod {
+  flat_rate
+  actual_cost
+}
+
+enum TransactionType {
+  income
+  expense
+}
+
+enum ExpenseCategoryKind {
+  general
+  mileage
+  vehicle_actual
+}
+
+enum InvoiceStatus {
+  issued
+  paid
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  passwordHash  String
+  name          String
+  practiceType  PracticeType?
+  expenseMethod ExpenseMethod?
+  onboardedAt   DateTime?
+  sessions      Session[]
+  transactions  Transaction[]
+  invoices      Invoice[]
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  expiresAt DateTime
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ExpenseCategory {
+  slug         String              @id
+  name         String
+  keywords     String[]
+  kind         ExpenseCategoryKind
+  transactions Transaction[]
+}
+
+model Transaction {
+  id           Int              @id @default(autoincrement())
+  type         TransactionType
+  occurredOn   DateTime         @db.Date
+  amountPence  Int
+  note         String?
+  miles        Int?
+  userId       Int
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categorySlug String?
+  category     ExpenseCategory? @relation(fields: [categorySlug], references: [slug])
+  invoiceId    Int?             @unique
+  invoice      Invoice?         @relation(fields: [invoiceId], references: [id])
+  receipt      Receipt?
+
+  @@index([userId, occurredOn])
+}
+
+model Receipt {
+  transactionId Int         @id
+  contentType   String
+  byteSize      Int
+  storageKey    String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  number      String
+  clientName  String
+  service     String
+  amountPence Int
+  issuedOn    DateTime      @db.Date
+  status      InvoiceStatus @default(issued)
+  paidOn      DateTime?     @db.Date
+  userId      Int
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+
+  @@unique([userId, number])
+}
