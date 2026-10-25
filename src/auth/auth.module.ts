@@ -7,5 +7,6 @@ import { UsersController } from './users.controller.js';
 @Module({
   controllers: [AuthController, UsersController],
   providers: [AuthService, AuthGuard],
+  exports: [AuthService],
 })
 export class AuthModule {}
