@@ -1,16 +1,16 @@
 # Step 16 — Daily income summary
 
-Guide: [Project plan](02_project_plans.md). Previous: [Step 15 — Hourly bonuses](17_step15_hourly_bonuses.md). Next: [Step 17 — Invoices from records](19_step17_invoices_from_records.md).
+Guide: [Project plan](02_project_plans.md). Previous: [Step 15 — Bonus](17_step15_bonus.md). Next: [Step 17 — Invoices from records](19_step17_invoices_from_records.md).
 
 ## Why this step comes first
 
-The feed shows rows. This step adds one read that totals a civil date: base, additional fees, and recorded bonuses. The total is computed when the request arrives. There is no daily-total column to edit.
+The feed shows rows. This step adds one read that totals a civil date: base, additional fees, and bonuses. The total is computed when the request arrives. There is no daily-total column to edit.
 
-Depends on massage income from [step 14](16_step14_massage_income.md) and bonuses from [step 15](17_step15_hourly_bonuses.md). The tax summary learns to add bonuses here, once. The pure tax function in [step 5](07_step05_tax_calculator.md) stays as it is.
+Depends on massage income from [step 14](16_step14_massage_income.md) and `bonusPence` from [step 15](17_step15_bonus.md). The bonus is already inside each massage row's `amountPence`. This step breaks that amount back into the three parts for one day. It does not add the bonus a second time. The pure tax function in [step 5](07_step05_tax_calculator.md) stays as it is. `GET /tax/summary` keeps summing income `amountPence` only.
 
 ## Not in this step
 
-Do not create invoices from these totals. Do not add invoice `amountPence` into the day. Do not insert a transaction for a bonus. Do not add a new React route. The summary will be shown from `FeedPage.tsx` later.
+Do not create invoices from these totals. Do not add invoice `amountPence` into the day. Do not insert a transaction for a bonus. Do not add a new React route. The summary will be shown from `FeedPage.tsx` later. Do not read `HourlyBonus`. If the tax handler still adds a separate bonus total, remove that add. `amountPence` already includes `bonusPence`.
 
 ## Concept
 
@@ -21,7 +21,7 @@ interface DailyIncomeSummary {
   date: string;
   basePence: number;
   additionalFeePence: number;
-  hourlyBonusPence: number;
+  bonusPence: number;
   totalPence: number;
   byWorkplace: {
     workplaceId: number;
@@ -29,7 +29,7 @@ interface DailyIncomeSummary {
     kind: 'spa' | 'clinic';
     basePence: number;
     additionalFeePence: number;
-    hourlyBonusPence: number;
+    bonusPence: number;
     totalPence: number;
   }[];
   byMassageType: {
@@ -37,25 +37,30 @@ interface DailyIncomeSummary {
     customMassageType?: string;
     basePence: number;
     additionalFeePence: number;
+    bonusPence: number;
     totalPence: number;
   }[];
 }
 ```
 
-The grouping is a pure function, `summariseDay`, in `src/income-summary/summarise-day.ts`. The handler loads this user's income rows and bonus rows for that civil date and calls the function. The controller does not add.
+The grouping is a pure function, `summariseDay`, in `src/income-summary/summarise-day.ts`. The handler loads this user's income rows for that civil date and calls the function. It does not load a bonus table. The controller does not add.
 
 For each income row:
 
-- When `basePence` is set, add `basePence` to base and `additionalFeePence` to fees. Do not also add `amountPence`. `amountPence` is already base plus fee.
-- When `basePence` is absent, add `amountPence` to base and add nothing to fees.
+- When `basePence` is set, add `basePence` to base, `additionalFeePence` (or 0) to fees, and `bonusPence` (or 0) to bonuses. Do not also add `amountPence`. `amountPence` is already base plus fee plus bonus.
+- When `basePence` is absent, add `amountPence` to base and add nothing to fees or bonuses.
 
-`hourlyBonusPence` is the sum of bonus `totalPence` on that date. `totalPence` is base plus fees plus bonuses.
+`totalPence` is base plus fees plus bonuses.
 
-`byWorkplace` has one object per workplace that has income or a bonus that day. Read the workplace name and kind from the `Workplace` row. Income with no workplace stays in the top-level numbers and is left out of `byWorkplace`. `byMassageType` includes only rows that have `massageType`. The same type and the same custom text are one bucket. Two different custom texts stay two buckets. Cash income with no massage type stays in the top-level base only.
+`byWorkplace` has one object per workplace that has income that day. Read the workplace name and kind from the `Workplace` row. Income with no workplace stays in the top-level numbers and is left out of `byWorkplace`. A row's bonus is inside that workplace's `bonusPence` and inside its `totalPence`.
+
+`byMassageType` includes only rows that have `massageType`. The same type and the same custom text are one bucket. Two different custom texts stay two buckets. The bucket's `bonusPence` is the sum of `bonusPence` on those rows, and its `totalPence` includes that bonus. Cash income with no massage type stays in the top-level base only.
+
+The top-level bonus counts each row once. Adding a workplace total to a massage-type total counts the same row twice and is not the daily total.
 
 An empty day is `200`. Every pence field is `0`. Both arrays are empty.
 
-In `src/tax-engine/tax-engine.service.ts`, add this user's bonus `totalPence` for days inside the tax year onto the income sum, once, before `calculateTaxSummary`. Do not add `basePence`. Do not add invoice amounts. Do not put `20`, `6`, or the disclaimer in the controller. With no bonus rows the extra sum is 0, so [step 9](11_step09_tax_summary.md) still matches.
+In `src/tax-engine/tax-engine.service.ts`, `incomePence` stays the sum of income `amountPence` for the tax year. Do not add `bonusPence` on top. Do not add `basePence`. Do not add invoice amounts. Do not put `20`, `6`, or the disclaimer in the controller. A massage row of `6700` raises `incomePence` by `6700`, once. [Step 9](11_step09_tax_summary.md) still matches for a user whose income has no separate bonus column to add.
 
 Bearer and onboarding match step 13.
 
@@ -68,11 +73,11 @@ Bearer and onboarding match step 13.
 - `src/income-summary/income-summary.controller.ts`
 - `src/income-summary/income-summary.module.ts`
 - `src/app.module.ts` adds `IncomeSummaryModule`
-- `src/tax-engine/tax-engine.service.ts` adds the bonus sum to the income total
+- `src/tax-engine/tax-engine.service.ts` sums `amountPence` only
 
 The query DTO uses optional `date` with `Matches(/^\d{2}-\d{2}-\d{4}$/)`.
 
-The unit test must fail if the function adds `amountPence` on top of base and fee. An income of base `1000`, fee `200`, and `amountPence` `1200`, plus a bonus of `300`, returns `totalPence` `1500`, not `2700`.
+The unit test must fail if the function adds `amountPence` on top of the three parts. An income of base `6000`, fee `200`, bonus `500`, and `amountPence` `6700` returns `totalPence` `6700`, not `13400`. It must also fail if the bonus is added twice (`7200`) or dropped (`6200`). A missing bonus is `0`.
 
 ## Commands you run
 
@@ -80,17 +85,17 @@ The unit test must fail if the function adds `amountPence` on top of base and fe
 npm test
 ```
 
-Remember `incomePence` from `GET /tax/summary` for a user who has no bonus rows. The £20,000 check from step 9 still applies to a user whose only income is `2_000_000` pence and who has no expenses and no bonuses: `estimatedTaxOwedPence` is `193180`.
+The £20,000 check from step 9 still applies to a user whose only income is `2_000_000` pence and who has no expenses: `estimatedTaxOwedPence` is `193180`. Read `GET /tax/summary` before this massage row exists when you can. If the step 15 row is already stored, the later delete is the check: `incomePence` falls by `6700`.
 
-As Ada, on `01-05-2026`, you need one Swedish income (`basePence` `1000`, `additionalFeePence` `200`) and one bonus (`totalPence` `300`) at the same workplace. If those rows were deleted, create them again. Move or delete any other income or bonus on that date, so the top-level total is exactly `1500`.
+As Ada, on `01-05-2026`, you need one Swedish income at one workplace: `basePence` `6000`, `additionalFeePence` `200`, `bonusPence` `500`. Reuse the step 15 row if it is still there. Move or delete any other income on that date, so the top-level total is exactly `6700`.
 
 ```text
 GET {{baseUrl}}/income/summary?date=01-05-2026
 ```
 
-Create an unpaid one-line invoice with `POST /invoices` for an amount that is not `1500`, issued on that date. Do not pay it. Request the summary again.
+Create an unpaid invoice only if the current `POST /invoices` still accepts a one-line body that is not `6700`. If create already requires a recipient and a period, skip that invoice and do not pay one. Request the summary again either way. The summary must not read `Invoice`.
 
-Delete the Swedish income. Request the summary again. Request `GET /tax/summary` while the bonus still exists, then delete the bonus and request the tax summary again.
+Request `GET /tax/summary` while the Swedish row exists and remember `incomePence`. Delete the Swedish income. Request the summary again, then request `GET /tax/summary` again.
 
 ```text
 GET {{baseUrl}}/income/summary?date=01-01-2026
@@ -102,15 +107,15 @@ GET {{baseUrl}}/income/summary?date=01-04-2026
 
 ## What you must see
 
-`npm test` passes, including the `1500` summary test and the unchanged tax function tests.
+`npm test` passes, including the `6700` summary test and the unchanged tax function tests.
 
-The summary for `01-05-2026` has `basePence` `1000`, `additionalFeePence` `200`, `hourlyBonusPence` `300`, and `totalPence` `1500`. `byWorkplace` names that spa or clinic and its totals add to `1500`. `byMassageType` has `swedish` with base `1000`, fee `200`, and total `1200`. The bonus is not inside `byMassageType`.
+The summary for `01-05-2026` has `basePence` `6000`, `additionalFeePence` `200`, `bonusPence` `500`, and `totalPence` `6700`. `byWorkplace` names that spa or clinic, and its four figures match the top level. `byMassageType` has `swedish` with base `6000`, fee `200`, bonus `500`, and total `6700`.
 
-The unpaid invoice does not change those four numbers.
+An invoice does not change those four numbers.
 
-After the income is deleted, base and fee are `0`, `hourlyBonusPence` is `300`, and `totalPence` is `300`.
+After the income is deleted, base, fee, bonus, and total are `0`. The bonus does not remain behind on its own.
 
-While the bonus exists, `incomePence` on the tax summary is `300` higher than it was before that bonus. It is not `600` higher. After the bonus is deleted, `incomePence` returns to the remembered value. A user with £20,000 and no bonus still has `estimatedTaxOwedPence` `193180`.
+While the row exists, `incomePence` on the tax summary is `6700` higher than it was before that row. It is not `7200` higher and not `6200` higher. After the row is deleted, `incomePence` returns to the remembered value. A user with £20,000 and no other income still has `estimatedTaxOwedPence` `193180`.
 
 `01-01-2026` gets `200` and zeros, if Ada has nothing on that day. `01-04-2026` gets `400` and the message `Date is outside the 2026-27 tax year`.
 
@@ -118,10 +123,12 @@ No Bearer gets `401`. A user who is not onboarded gets `403`.
 
 ## If it fails
 
-- `totalPence` is `2700`: `amountPence` was added as well as base and fee. Add the base and the fee, not the total that already contains them.
-- `totalPence` is `1800`: the bonus was added twice, once as if it were income and once as a bonus.
-- The summary changed when the unpaid invoice was created: the query read `Invoice`. It must read transactions and bonuses only.
+- `totalPence` is `13400`: `amountPence` was added as well as the three parts. Add the parts, not the total that already contains them.
+- `totalPence` is `7200`: the bonus was added twice.
+- `totalPence` is `6200`: the bonus column was ignored.
+- The summary changed when an invoice was created: the query read `Invoice`. It must read income transactions only.
+- Deleting the income left a bonus behind: the bonus was stored on another row. It is `bonusPence` on the transaction.
 - Deleting the income left the summary unchanged: a stored daily total was written. Delete that column. Compute the numbers in the function.
-- The tax function file changed: put the bonus sum in the handler that loads data. Leave `calculateTaxSummary` as it was in step 5.
+- The tax summary rose by more than `6700`: the handler added `bonusPence` on top of `amountPence`. Delete that add. Leave `calculateTaxSummary` as it was in step 5.
 
 **Pass this step, then continue.**

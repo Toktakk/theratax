@@ -4,13 +4,13 @@ Guide: [Project plan](02_project_plans.md). Previous: [Step 12 — React pages](
 
 ## Why this step comes first
 
-Massage income and hourly bonuses both point at a saved spa or clinic. The invoice in [step 17](19_step17_invoices_from_records.md) reuses the same row. This step only creates and lists workplaces. It does not put a workplace id on a transaction yet.
+Massage income points at a saved spa or clinic. The bonus in [step 15](17_step15_bonus.md) is an amount on that income row, not a second workplace record. The invoice in [step 17](19_step17_invoices_from_records.md) reuses the same workplace row. This step only creates and lists workplaces. It does not put a workplace id on a transaction yet.
 
 Depends on the bearer token and `assertOnboarded` from [step 8](10_step08_log_income_and_expenses.md). Do not start it before that step's check passes.
 
 ## Not in this step
 
-Do not add massage fields. Do not add bonuses, clients, or a daily summary. Do not change `POST /invoices`. Do not add a React route. The feed page will call this list later. It does not call it in this step.
+Do not add massage fields. Do not add `bonusPence`, clients, or a daily summary. Do not change `POST /invoices`. Do not add a React route. The feed page will call this list later. It does not call it in this step.
 
 ## Concept
 

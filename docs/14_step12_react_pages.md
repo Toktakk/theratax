@@ -2,6 +2,8 @@
 
 Guide: [Project plan](02_project_plans.md). Previous: [Step 11 — Invoices and PDF](13_step11_invoices_and_pdf.md). Next: [Step 13 — Workplaces](15_step13_workplaces.md).
 
+Current screen requirements are in [Page plans](20_plan_pages.md). This file is only the step-12 build. It creates the baseline pages. It does not add massage fields, a workplace, a bonus, a daily summary, or a day or month invoice. Those requirements are in the page plans and in steps 13–17.
+
 ## Why this step comes last
 
 The web page is a client of the contract. If you draw a page before that step's Postman request passes, a button breaks and you cannot tell whether it broke in the form or in the API. Build one page at a time, following [`01_user_flow.md`](01_user_flow.md). Check it in the browser and finish the current page before you create the next page's files.

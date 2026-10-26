@@ -29,7 +29,7 @@ The controller must not contain the numbers `20`, `6`, `55`, `1257000`, or the d
 
 Income that is counted includes both feed income and the income [step 11](13_step11_invoices_and_pdf.md) will create when an invoice is paid. This step has no invoices yet, so you only see rows you logged yourself. Allowable expenses are the sum of `expense` rows in the same window. A loss stays on `netProfitPence`. Tax uses `taxableProfitPence`, which is not negative.
 
-[Step 16](18_step16_daily_income_summary.md) adds hourly-bonus `totalPence` into `incomePence` once. A database with no bonus rows leaves this step's check unchanged, because that extra sum is 0. Do not add `basePence` on top of `amountPence`. Do not make that change in this step.
+[Step 15](17_step15_bonus.md) stores a typed bonus inside the massage row's `amountPence`. This step's sum of `amountPence` already includes that bonus later. Do not add `bonusPence` again. Do not add `basePence` on top of `amountPence`. Do not make a second bonus add in this step. [Step 16](18_step16_daily_income_summary.md) only breaks the same amount into base, fee, and bonus for one day.
 
 ## Files for this step
 

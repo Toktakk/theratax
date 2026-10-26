@@ -14,7 +14,7 @@ Do not build React pages. Do not email invoices. Do not do multiple lines, and d
 
 ## Superseded for new invoices
 
-This lesson's pay action creates the income row. That is what the running code does until [step 17](19_step17_invoices_from_records.md). Step 17 bills a saved spa, clinic, or client from feed income and hourly bonuses. Creating or paying that invoice must not insert another income transaction. Rows this step already created stay in the database. Run this step's pay check on the one-line invoice. Do not change that pay action while this step is the one you have open.
+This lesson's pay action creates the income row. That is the check while this step is the one you have open. [Step 17](19_step17_invoices_from_records.md) bills a saved spa, clinic, or client from feed income, including each row's additional fee and bonus. Creating or paying that invoice must not insert another income transaction. Rows this step already created stay in the database. Run this step's pay check on the one-line invoice. Do not change that pay action while this step is the one you have open.
 
 ## Concept
 

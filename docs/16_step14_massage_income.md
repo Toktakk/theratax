@@ -1,6 +1,6 @@
 # Step 14 — Massage income
 
-Guide: [Project plan](02_project_plans.md). Previous: [Step 13 — Workplaces](15_step13_workplaces.md). Next: [Step 15 — Hourly bonuses](17_step15_hourly_bonuses.md).
+Guide: [Project plan](02_project_plans.md). Previous: [Step 13 — Workplaces](15_step13_workplaces.md). Next: [Step 15 — Bonus](17_step15_bonus.md).
 
 ## Why this step comes first
 
@@ -10,7 +10,7 @@ Depends on step 13, because `workplaceId` must point at a saved workplace. Cash 
 
 ## Not in this step
 
-Do not add hourly bonuses or `GET /income/summary`. Do not add `clientId`. Do not change invoice pay. Do not require a receipt. Do not add a React page.
+Do not add `bonusPence` or `GET /income/summary`. Do not add `clientId`. Do not change invoice pay. Do not require a receipt. Do not add a React page. The amount message in this step does not mention a bonus. [Step 15](17_step15_bonus.md) changes that message when `bonusPence` joins the sum.
 
 ## Concept
 
@@ -29,6 +29,7 @@ enum MassageType {
   back_neck
   sport
   hot_stone
+  body_scrub
   other
 }
 ```
@@ -56,6 +57,7 @@ The names the feed and a later invoice line show:
 | `back_neck` | Back & Neck |
 | `sport` | Sport Massage |
 | `hot_stone` | Hot Stone |
+| `body_scrub` | Body Scrub |
 | `other` | Other |
 
 Create accepts the step 8 fields plus optional `massageType`, `customMassageType` (1–100 characters), `basePence` (integer 1 to `100_000_000`), `additionalFeePence` (integer 0 to `100_000_000`), and `workplaceId`. Update accepts any subset of those, and still has no `type`. Sending `type` is `400` from the pipe.
@@ -83,7 +85,7 @@ Mileage math from step 8 is unchanged. A row that has `invoiceId` is still immut
 - `src/transactions/transactions.service.ts`
 - `src/transactions/transaction-response.ts`
 
-The new money fields use `IsOptional`, `IsInt`, `Min`, and `Max`. `massageType` uses `IsIn` with the twelve values. `workplaceId` uses `IsInt` and `Min(1)`.
+The new money fields use `IsOptional`, `IsInt`, `Min`, and `Max`. `massageType` uses `IsIn` with the thirteen values. `workplaceId` uses `IsInt` and `Min(1)`.
 
 ## Commands you run
 
@@ -125,7 +127,7 @@ Then send the failures, still as Ada.
 {"type":"income","amountPence":100,"occurredOn":"02-05-2026"}
 ```
 
-Repeat a successful `POST` once for each remaining type, with `basePence` `100` and a date inside the tax year: `deep_tissue`, `thai_oil`, `thai_yoga`, `aroma`, `pregnancy`, `lymphatic`, `foot`, `back_neck`, `sport`, `hot_stone`. For `other`, include `"customMassageType":"Chair massage"`.
+Repeat a successful `POST` once for each remaining type, with `basePence` `100` and a date inside the tax year: `deep_tissue`, `thai_oil`, `thai_yoga`, `aroma`, `pregnancy`, `lymphatic`, `foot`, `back_neck`, `sport`, `hot_stone`, `body_scrub`. For `other`, include `"customMassageType":"Chair massage"`.
 
 Create an expense on `01-05-2026` after the Swedish income exists, then list that day. The list is the normal `GET /transactions?limit=100`. Also `GET` the Swedish row and `PATCH` its note to `follow up`.
 
@@ -139,7 +141,7 @@ The Swedish `POST` gets `201`. `amountPence` is `1200`. `additionalFeePence` is 
 
 A negative fee gets `400` and `message` is an array. The expense with a massage type gets `400` and the message `Massage type is only valid on income`. `other` without custom text gets `400` and the message `Custom massage type is required`. A total that is not base plus fee gets `400` and the message `Amount must equal base plus additional fee`.
 
-Each of the twelve types gets `201`. `other` echoes `customMassageType` of `Chair massage`.
+Each of the thirteen types gets `201`. `body_scrub` is stored as `body_scrub`. `other` echoes `customMassageType` of `Chair massage`.
 
 Cash income of `100` pence gets `201` and does not include `massageType`, `basePence`, or `additionalFeePence`.
 
