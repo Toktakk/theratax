@@ -1,6 +1,6 @@
 # Step 12 — React pages
 
-Guide: [Project plan](02_project_plans.md). Previous: [Step 11 — Invoices and PDF](13_step11_invoices_and_pdf.md).
+Guide: [Project plan](02_project_plans.md). Previous: [Step 11 — Invoices and PDF](13_step11_invoices_and_pdf.md). Next: [Step 13 — Workplaces](15_step13_workplaces.md).
 
 ## Why this step comes last
 
@@ -50,9 +50,9 @@ When the app opens, if there is no token, show the sign-in page. If there is one
 
 ## Sign-in page
 
-The files for this stretch are only `client/src/api.ts`, `client/src/pages/SignInPage.tsx`, and the wiring in `client/src/App.tsx`. Do not create the onboarding page yet.
+Login and register are two routes. The files for this stretch are `client/src/api.ts`, `client/src/pages/SignInPage.tsx`, `client/src/pages/RegisterPage.tsx`, and the wiring in `client/src/App.tsx`. Do not create the onboarding page yet.
 
-The register form has email, password, and name. The login form has email and password. A password shorter than 8 characters shows the array the pipe sent. A duplicate email shows `Email already registered`. A wrong password shows `Invalid email or password`, without guessing which part was wrong.
+`SignInPage.tsx` is `/`. It has email and password, and a link to register. `RegisterPage.tsx` is `/register`. It has email, password, and name. Do not put both forms on one page. A password shorter than 8 characters shows the array the pipe sent. A duplicate email shows `Email already registered`. A wrong password shows `Invalid email or password`, without guessing which part was wrong.
 
 When you receive `accessToken`, store it, then call `GET /users/me`.
 
@@ -84,7 +84,7 @@ Check: register a new account. You must be stuck on this page before you see the
 
 ## Feed
 
-This is flow item 2. The new files are the feed page, the category filter, and `client/src/hint.ts`. Do not add an attach-photo button yet, and do not build the invoice page.
+This is flow item 2. The file is `client/src/pages/FeedPage.tsx`, plus the category filter and `client/src/hint.ts`. Do not add an attach-photo button yet, and do not build the invoice page. Do not add massage fields, a workplace picker, or a daily summary on this page. Those wait until [steps 13–16](02_project_plans.md) have passing checks, and they stay on this page rather than becoming new routes.
 
 When you enter the feed, call `GET /expense-categories` once, then keep the result. Filter categories by the user's `expenseMethod`.
 
@@ -119,7 +119,7 @@ Check: choose a JPEG and see the picture in the row. Refresh, ask for a new link
 
 ## Invoice page
 
-This is flow item 4. The form has the client name, the service, pounds, pence, and an issue date that can be left blank.
+This is flow item 4. The file is `client/src/pages/InvoicePage.tsx`. The form has the client name, the service, pounds, pence, and an issue date that can be left blank. Saved spa, clinic, and client recipients, and a day or month period, are [step 17](19_step17_invoices_from_records.md). They stay on this page. Do not build them in this step.
 
 Pressing create calls only `POST /invoices`. Do not follow it with `POST /transactions`. The invoice list shows the number, status `issued`, and no paid date yet. The feed does not gain income.
 
@@ -139,7 +139,7 @@ Show all six `assumptions` in order, and the whole `disclaimer` sentence exactly
 
 Check: the numbers on the page match the Postman request for the same user. An unpaid invoice does not move the total. After you go back and pay on the invoice page, then open this page again, income rises by the amount on that invoice. The feed page can still log a row without waiting for this page to load.
 
-**Pass this page. The lesson is finished.**
+**Pass this page.** The baseline screens are finished. There is no separate route for a workplace, a massage form, a daily summary, or a recipient picker. Those stay on `FeedPage.tsx` and `InvoicePage.tsx` when the later API steps exist. [Step 13](15_step13_workplaces.md) is the next API step. It does not add a React page.
 
 ## If it fails
 

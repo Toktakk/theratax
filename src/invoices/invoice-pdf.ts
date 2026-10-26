@@ -1,5 +1,13 @@
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
+export interface InvoicePdfLine {
+  description: string;
+  quantity: number;
+  quantityUnit: string;
+  ratePence: number;
+  amountPence: number;
+}
+
 export interface InvoicePdfInput {
   therapistName: string;
   number: string;
@@ -9,6 +17,10 @@ export interface InvoicePdfInput {
   amountPence: number;
   status: 'issued' | 'paid';
   paidOn?: string;
+  recipientName?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  lines?: InvoicePdfLine[];
 }
 
 export function formatInvoiceAmount(amountPence: number): string {
@@ -22,11 +34,23 @@ export function invoicePdfLines(input: InvoicePdfInput): string[] {
     `Therapist: ${input.therapistName}`,
     `Number: ${input.number}`,
     `Issued: ${input.issuedOn}`,
-    `Client: ${input.clientName}`,
-    `Service: ${input.service}`,
-    `Amount: ${formatInvoiceAmount(input.amountPence)}`,
-    `Status: ${input.status}`,
   ];
+  if (input.lines !== undefined && input.lines.length > 0) {
+    const periodStart = input.periodStart ?? input.issuedOn;
+    const periodEnd = input.periodEnd ?? input.issuedOn;
+    lines.push(`Recipient: ${input.recipientName ?? input.clientName}`);
+    lines.push(`Period: ${periodStart} to ${periodEnd}`);
+    for (const line of input.lines) {
+      lines.push(
+        `${line.description}, ${line.quantity} ${line.quantityUnit}, ${formatInvoiceAmount(line.ratePence)}, ${formatInvoiceAmount(line.amountPence)}`,
+      );
+    }
+  } else {
+    lines.push(`Client: ${input.clientName}`);
+    lines.push(`Service: ${input.service}`);
+  }
+  lines.push(`Amount: ${formatInvoiceAmount(input.amountPence)}`);
+  lines.push(`Status: ${input.status}`);
   if (input.paidOn !== undefined) {
     lines.push(`Paid: ${input.paidOn}`);
   }

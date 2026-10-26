@@ -10,7 +10,11 @@ The PDF builder must be a pure function of the invoice and the user's name, with
 
 ## Not in this step
 
-Do not build React pages. Do not email invoices. Do not do multiple lines, and do not do VAT. Those are in Phase 2.
+Do not build React pages. Do not email invoices. Do not do multiple lines, and do not do VAT. VAT stays in Phase 2. Multiple lines for a day or a month are [step 17](19_step17_invoices_from_records.md), not this step.
+
+## Superseded for new invoices
+
+This lesson's pay action creates the income row. That is what the running code does until [step 17](19_step17_invoices_from_records.md). Step 17 bills a saved spa, clinic, or client from feed income and hourly bonuses. Creating or paying that invoice must not insert another income transaction. Rows this step already created stay in the database. Run this step's pay check on the one-line invoice. Do not change that pay action while this step is the one you have open.
 
 ## Concept
 
@@ -216,4 +220,4 @@ The income row tied to this invoice, edited or deleted through `/transactions/:i
 - A special font forces the test to open a browser: use a standard `pdf-lib` font, and lock the text on the lines function. Do not extract text from the PDF bytes.
 - The invoice number is `TT-1`: it has not been through `padStart(4, '0')`.
 
-**Pass this step, then continue.** The API side of the user flow is complete. [Step 12](14_step12_react_pages.md) is the screens. It does not add a new money rule.
+**Pass this step, then continue.** The baseline invoice API is complete. [Step 12](14_step12_react_pages.md) is the screens. It does not add a new money rule. [Step 17](19_step17_invoices_from_records.md) is the later change to how a new invoice is paid.

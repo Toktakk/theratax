@@ -12,6 +12,10 @@ Before there is a route, have a date helper that is a pure function, with its ow
 
 Do not write `GET /tax/summary`. Do not upload images. Do not create invoices. A row tied to `invoiceId` is blocked from edits on this path, but nobody creates a row like that until [step 11](13_step11_invoices_and_pdf.md).
 
+## Extended later
+
+Massage type, a workplace id, base amount, additional fee, `createdAt`, `updatedAt`, and a list order that puts income before expense on the same day are [step 14](16_step14_massage_income.md). This step's check still uses `amountPence` only. The list order written below stays `occurredOn` descending, then `id` descending, until step 14 changes it. Do not add those fields while this step is open.
+
 ## Concept
 
 One row is one income or one expense. Money is pence. The day is `DD-MM-YYYY`.

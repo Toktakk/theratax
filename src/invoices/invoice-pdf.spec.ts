@@ -57,6 +57,59 @@ describe('invoicePdfLines', () => {
   });
 });
 
+describe('invoicePdfLines with stored lines', () => {
+  it('draws the recipient, each line, and the 1500 pence total', () => {
+    expect(
+      invoicePdfLines({
+        therapistName: 'Ada Lovelace',
+        number: 'TT-0002',
+        issuedOn: '02-05-2026',
+        clientName: '',
+        service: '',
+        amountPence: 1500,
+        status: 'issued',
+        recipientName: 'North Spa',
+        periodStart: '01-05-2026',
+        periodEnd: '01-05-2026',
+        lines: [
+          {
+            description: 'Swedish',
+            quantity: 1,
+            quantityUnit: 'session',
+            ratePence: 1000,
+            amountPence: 1000,
+          },
+          {
+            description: 'Additional fee',
+            quantity: 1,
+            quantityUnit: 'session',
+            ratePence: 200,
+            amountPence: 200,
+          },
+          {
+            description: 'Hourly bonus',
+            quantity: 90,
+            quantityUnit: 'minute',
+            ratePence: 200,
+            amountPence: 300,
+          },
+        ],
+      }),
+    ).toEqual([
+      'Therapist: Ada Lovelace',
+      'Number: TT-0002',
+      'Issued: 02-05-2026',
+      'Recipient: North Spa',
+      'Period: 01-05-2026 to 01-05-2026',
+      'Swedish, 1 session, £10.00, £10.00',
+      'Additional fee, 1 session, £2.00, £2.00',
+      'Hourly bonus, 90 minute, £2.00, £3.00',
+      'Amount: £15.00',
+      'Status: issued',
+    ]);
+  });
+});
+
 describe('buildInvoicePdf', () => {
   it('starts the file with %PDF', async () => {
     const bytes = await buildInvoicePdf({

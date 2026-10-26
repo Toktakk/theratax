@@ -10,21 +10,30 @@ import {
   import type { CreateTransactionDto } from './dto/create-transaction.dto.js';
   import type { ListTransactionsQueryDto } from './dto/list-transactions-query.dto.js';
   import type { UpdateTransactionDto } from './dto/update-transaction.dto.js';
-  import { formatCivilDate, parseTaxYearDate, todayCivilDate } from './civil-date.js';
-  import { mileageAmountPence } from './mileage-amount.js';
-  import type { TransactionListResponse, TransactionResponse } from './transaction-response.js';
-  
-  interface TransactionRow {
-    id: number;
-    type: 'income' | 'expense';
-    occurredOn: Date;
-    amountPence: number;
-    note: string | null;
-    categorySlug: string | null;
-    miles: number | null;
-    invoiceId: number | null;
-    receipt: { transactionId: number } | null;
-  }
+import { formatCivilDate, parseTaxYearDate, todayCivilDate } from './civil-date.js';
+import { mileageAmountPence } from './mileage-amount.js';
+import type { MassageType } from './massage-type.js';
+import type { TransactionListResponse, TransactionResponse } from './transaction-response.js';
+
+interface TransactionRow {
+  id: number;
+  type: 'income' | 'expense';
+  occurredOn: Date;
+  amountPence: number;
+  note: string | null;
+  categorySlug: string | null;
+  miles: number | null;
+  invoiceId: number | null;
+  massageType: MassageType | null;
+  customMassageType: string | null;
+  basePence: number | null;
+  additionalFeePence: number | null;
+  workplaceId: number | null;
+  clientId: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  receipt: { transactionId: number } | null;
+}
   
   function toResponse(row: TransactionRow): TransactionResponse {
     const response: TransactionResponse = {
@@ -33,7 +42,27 @@ import {
       occurredOn: formatCivilDate(row.occurredOn),
       amountPence: row.amountPence,
       hasReceipt: row.receipt !== null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
     };
+    if (row.massageType !== null) {
+      response.massageType = row.massageType;
+    }
+    if (row.customMassageType !== null) {
+      response.customMassageType = row.customMassageType;
+    }
+    if (row.basePence !== null) {
+      response.basePence = row.basePence;
+    }
+    if (row.additionalFeePence !== null) {
+      response.additionalFeePence = row.additionalFeePence;
+    }
+    if (row.workplaceId !== null) {
+      response.workplaceId = row.workplaceId;
+    }
+    if (row.clientId !== null) {
+      response.clientId = row.clientId;
+    }
     if (row.note !== null && row.note.length > 0) {
       response.note = row.note;
     }
@@ -63,7 +92,7 @@ import {
       const [rows, total] = await Promise.all([
         this.prisma.transaction.findMany({
           where,
-          orderBy: [{ occurredOn: 'desc' }, { id: 'desc' }],
+          orderBy: [{ occurredOn: 'desc' }, { type: 'asc' }, { id: 'desc' }],
           skip,
           take: limit,
           include: { receipt: true },
@@ -85,8 +114,18 @@ import {
     async create(user: PublicUser, input: CreateTransactionDto): Promise<TransactionResponse> {
       const expenseMethod = this.expenseMethod(user);
       const occurredOn = this.readDate(input.occurredOn ?? todayCivilDate(new Date()));
-      const draft = await this.resolveExpenseFields(expenseMethod, input.type, {
+      const massage = await this.applyMassage(user.id, input.type, {
+        massageType: input.massageType ?? null,
+        customMassageType: input.customMassageType ?? null,
+        basePence: input.basePence ?? null,
+        additionalFeePence: input.additionalFeePence ?? null,
+        workplaceId: input.workplaceId ?? null,
+        clientId: input.clientId ?? null,
         amountPence: input.amountPence ?? null,
+        amountProvided: input.amountPence !== undefined,
+      });
+      const draft = await this.resolveExpenseFields(expenseMethod, input.type, {
+        amountPence: massage.amountPence,
         amountProvided: input.amountPence !== undefined,
         categorySlug: input.categorySlug ?? null,
         miles: input.miles ?? null,
@@ -101,6 +140,12 @@ import {
           note: input.note ?? null,
           categorySlug: draft.categorySlug,
           miles: draft.miles,
+          massageType: massage.massageType,
+          customMassageType: massage.customMassageType,
+          basePence: massage.basePence,
+          additionalFeePence: massage.additionalFeePence,
+          workplaceId: massage.workplaceId,
+          clientId: massage.clientId,
         },
       });
       if (draft.categorySlug === 'mileage') {
@@ -116,8 +161,20 @@ import {
       }
       const expenseMethod = this.expenseMethod(user);
       const occurredOn = this.readDate(input.occurredOn ?? formatCivilDate(existing.occurredOn));
-      const draft = await this.resolveExpenseFields(expenseMethod, existing.type, {
+      const massage = await this.applyMassage(user.id, existing.type, {
+        massageType: input.massageType !== undefined ? input.massageType : existing.massageType,
+        customMassageType:
+          input.customMassageType !== undefined ? input.customMassageType : existing.customMassageType,
+        basePence: input.basePence !== undefined ? input.basePence : existing.basePence,
+        additionalFeePence:
+          input.additionalFeePence !== undefined ? input.additionalFeePence : existing.additionalFeePence,
+        workplaceId: input.workplaceId !== undefined ? input.workplaceId : existing.workplaceId,
+        clientId: input.clientId !== undefined ? input.clientId : existing.clientId,
         amountPence: input.amountPence !== undefined ? input.amountPence : existing.amountPence,
+        amountProvided: input.amountPence !== undefined,
+      });
+      const draft = await this.resolveExpenseFields(expenseMethod, existing.type, {
+        amountPence: massage.amountPence,
         amountProvided: input.amountPence !== undefined,
         categorySlug: input.categorySlug !== undefined ? input.categorySlug : existing.categorySlug,
         miles: input.miles !== undefined ? input.miles : existing.miles,
@@ -131,6 +188,12 @@ import {
           note: input.note !== undefined ? input.note : existing.note,
           categorySlug: draft.categorySlug,
           miles: draft.miles,
+          massageType: massage.massageType,
+          customMassageType: massage.customMassageType,
+          basePence: massage.basePence,
+          additionalFeePence: massage.additionalFeePence,
+          workplaceId: massage.workplaceId,
+          clientId: massage.clientId,
         },
       });
       if (existing.categorySlug === 'mileage' || draft.categorySlug === 'mileage') {
@@ -163,6 +226,121 @@ import {
         throw new BadRequestException('Date is outside the 2026-27 tax year');
       }
       return date;
+    }
+
+    private async applyMassage(
+      userId: number,
+      type: 'income' | 'expense',
+      fields: {
+        massageType: MassageType | null;
+        customMassageType: string | null;
+        basePence: number | null;
+        additionalFeePence: number | null;
+        workplaceId: number | null;
+        clientId: number | null;
+        amountPence: number | null;
+        amountProvided: boolean;
+      },
+    ): Promise<{
+      massageType: MassageType | null;
+      customMassageType: string | null;
+      basePence: number | null;
+      additionalFeePence: number | null;
+      workplaceId: number | null;
+      clientId: number | null;
+      amountPence: number | null;
+    }> {
+      if (type === 'expense') {
+        if (fields.massageType !== null) {
+          throw new BadRequestException('Massage type is only valid on income');
+        }
+        if (
+          fields.basePence !== null ||
+          fields.additionalFeePence !== null ||
+          fields.customMassageType !== null
+        ) {
+          throw new BadRequestException('Additional fee is only valid on massage income');
+        }
+        if (fields.workplaceId !== null) {
+          throw new BadRequestException('Workplace is only valid on income');
+        }
+        if (fields.clientId !== null) {
+          throw new BadRequestException('Client is only valid on income');
+        }
+        return {
+          massageType: null,
+          customMassageType: null,
+          basePence: null,
+          additionalFeePence: null,
+          workplaceId: null,
+          clientId: null,
+          amountPence: fields.amountPence,
+        };
+      }
+      if (fields.workplaceId !== null && fields.clientId !== null) {
+        throw new BadRequestException('Income refers to a workplace or a client, not both');
+      }
+      if (fields.workplaceId !== null) {
+        const workplace = await this.prisma.workplace.findFirst({
+          where: { id: fields.workplaceId, userId },
+        });
+        if (workplace === null) {
+          throw new NotFoundException(`Workplace ${fields.workplaceId} not found`);
+        }
+      }
+      if (fields.clientId !== null) {
+        const client = await this.prisma.client.findFirst({
+          where: { id: fields.clientId, userId },
+        });
+        if (client === null) {
+          throw new NotFoundException(`Client ${fields.clientId} not found`);
+        }
+      }
+      if (fields.massageType === null) {
+        if (
+          fields.basePence !== null ||
+          fields.additionalFeePence !== null ||
+          fields.customMassageType !== null
+        ) {
+          throw new BadRequestException('Additional fee is only valid on massage income');
+        }
+        return {
+          massageType: null,
+          customMassageType: null,
+          basePence: null,
+          additionalFeePence: null,
+          workplaceId: fields.workplaceId,
+          clientId: fields.clientId,
+          amountPence: fields.amountPence,
+        };
+      }
+      if (fields.basePence === null) {
+        throw new BadRequestException('Base amount is required');
+      }
+      const additionalFeePence = fields.additionalFeePence ?? 0;
+      if (fields.massageType === 'other') {
+        if (fields.customMassageType === null) {
+          throw new BadRequestException('Custom massage type is required');
+        }
+      } else if (fields.customMassageType !== null) {
+        throw new BadRequestException('Custom massage type is only valid for other');
+      }
+      const amountPence = fields.basePence + additionalFeePence;
+      if (amountPence > 100_000_000) {
+        throw new BadRequestException('Amount is above the maximum');
+      }
+      if (fields.amountProvided && fields.amountPence !== amountPence) {
+        throw new BadRequestException('Amount must equal base plus additional fee');
+      }
+      return {
+        massageType: fields.massageType,
+        customMassageType: fields.massageType === 'other' ? fields.customMassageType : null,
+        basePence: fields.basePence,
+        additionalFeePence,
+        workplaceId: fields.workplaceId,
+        clientId: fields.clientId,
+        amountPence,
+      };
     }
   
     private async resolveExpenseFields(

@@ -8,6 +8,10 @@ import { TaxEngineModule } from './tax-engine/tax-engine.module.js';
 import { TransactionsModule } from './transactions/transactions.module.js';
 import { UploadModule } from './upload/upload.module.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
+import { WorkplacesModule } from './workplaces/workplaces.module.js';
+import { HourlyBonusesModule } from './hourly-bonuses/hourly-bonuses.module.js';
+import { IncomeSummaryModule } from './income-summary/income-summary.module.js';
+import { ClientsModule } from './clients/clients.module.js';
 
 @Module({
   imports: [
@@ -18,8 +22,13 @@ import { InvoicesModule } from './invoices/invoices.module.js';
     TaxEngineModule,
     UploadModule,
     InvoicesModule,
+    WorkplacesModule,
+    HourlyBonusesModule,
+    IncomeSummaryModule,
+    ClientsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+

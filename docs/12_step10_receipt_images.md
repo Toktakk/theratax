@@ -12,6 +12,8 @@ Do not create invoices, and do not build React pages. Opening the link uses Post
 
 ## Concept
 
+Saving a transaction does not require a photograph. `POST /transactions` has no file field. An income row can be created with `hasReceipt: false` and no `Receipt` row. These upload routes stay for expenses and for any transaction that does have a photo. Do not remove the upload module because massage income does not use a picture.
+
 One transaction can have one image. `POST /transactions/:id/receipt` is `multipart/form-data`. The field name is `file`.
 
 - Accepted types: `image/jpeg`, `image/png`, `image/webp`
@@ -168,6 +170,8 @@ Uploading again gets `201`, and the new link still opens the picture.
 A transaction that still has no image gets `404` and the message `Receipt for transaction <id> not found`.
 
 In the transaction list, the uploaded row has `hasReceipt: true`.
+
+`POST /transactions` with `{"type":"income","amountPence":100}` and no file gets `201`, `hasReceipt` of `false`, and no receipt row for that id. `GET /transactions/{{thatId}}/receipt` gets `404`.
 
 No Bearer gets `401`. If you are not onboarded, you get `403`.
 

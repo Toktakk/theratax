@@ -17,10 +17,12 @@ import type { PublicUser } from '../auth/public-user.js';
 import { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto.js';
 import { PayInvoiceDto } from './dto/pay-invoice.dto.js';
+import { PreviewInvoiceQueryDto } from './dto/preview-invoice-query.dto.js';
 import { buildInvoicePdf } from './invoice-pdf.js';
 import { InvoicesService } from './invoices.service.js';
 import type {
   InvoiceListResponse,
+  InvoicePreviewResponse,
   InvoiceResponse,
 } from './invoices.service.js';
 
@@ -45,6 +47,14 @@ export class InvoicesController {
     return this.invoicesService.create(user, body);
   }
 
+  @Get('preview')
+  preview(
+    @CurrentUser() user: PublicUser,
+    @Query() query: PreviewInvoiceQueryDto,
+  ): Promise<InvoicePreviewResponse> {
+    return this.invoicesService.preview(user, query);
+  }
+
   @Get(':id/pdf')
   async pdf(
     @CurrentUser() user: PublicUser,
@@ -55,11 +65,15 @@ export class InvoicesController {
       therapistName: user.name,
       number: invoice.number,
       issuedOn: invoice.issuedOn,
-      clientName: invoice.clientName,
-      service: invoice.service,
+      clientName: invoice.clientName ?? '',
+      service: invoice.service ?? '',
       amountPence: invoice.amountPence,
       status: invoice.status,
       paidOn: invoice.paidOn,
+      recipientName: invoice.recipientName,
+      periodStart: invoice.periodStart,
+      periodEnd: invoice.periodEnd,
+      lines: invoice.lines,
     });
     return new StreamableFile(Buffer.from(bytes), {
       type: 'application/pdf',

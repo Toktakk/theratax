@@ -29,6 +29,8 @@ The controller must not contain the numbers `20`, `6`, `55`, `1257000`, or the d
 
 Income that is counted includes both feed income and the income [step 11](13_step11_invoices_and_pdf.md) will create when an invoice is paid. This step has no invoices yet, so you only see rows you logged yourself. Allowable expenses are the sum of `expense` rows in the same window. A loss stays on `netProfitPence`. Tax uses `taxableProfitPence`, which is not negative.
 
+[Step 16](18_step16_daily_income_summary.md) adds hourly-bonus `totalPence` into `incomePence` once. A database with no bonus rows leaves this step's check unchanged, because that extra sum is 0. Do not add `basePence` on top of `amountPence`. Do not make that change in this step.
+
 ## Files for this step
 
 - `src/tax-engine/dto/tax-summary-query.dto.ts`
@@ -112,6 +114,6 @@ No Bearer gets `401` and the message `Unauthorized`.
 - The totals are right but the tax pence do not match the test: the service rounded or multiplied a rate itself. Delete those numbers and call `calculateTaxSummary`.
 - Income is 0 even though rows exist: the `aggregate` date window does not match the dates written into `@db.Date`, or you forgot to filter `type`.
 - You included Ada's mileage and the number is not `193180`: that is correct, because there are expenses. The exact-number check uses a user with no expense rows.
-- There are no invoices yet, but you wrote a query against the `Invoice` table: that is [step 11](13_step11_invoices_and_pdf.md). The total comes only from the transaction table.
+- There are no invoices yet, but you wrote a query against the `Invoice` table: that is [step 11](13_step11_invoices_and_pdf.md). The total comes only from the transaction table. Bonus rows are [step 16](18_step16_daily_income_summary.md). With none in the database, this check does not add them.
 
 **Pass this step, then continue.**

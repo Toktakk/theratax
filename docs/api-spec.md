@@ -1,10 +1,12 @@
 # API Spec — TheraTax
 
-This project has no reference API to copy, and no React client yet. The Nest app is still the starter. This document is the contract, derived from the therapist user flow ([docs/01_user_flow.md](01_user_flow.md)) and from the capstone data model: **User** (account, auth, onboarding profile), **Transaction** (one income or expense, optionally linked to a receipt or an invoice), **ExpenseCategory** (seeded, profession-specific), and **Invoice** (number, client, service, amount, status, generated PDF).
+This document is the contract, derived from the therapist user flow ([docs/01_user_flow.md](01_user_flow.md)) and from the capstone data model: **User** (account, auth, onboarding profile), **Transaction** (one income or expense, optionally linked to a receipt or an invoice), **ExpenseCategory** (seeded, profession-specific), and **Invoice** (number, recipient, amount, status, generated PDF).
 
-Every clause below cites the flow step or the entity that requires it. The React app will be written against this file. Backend modules follow the same ownership: auth, transactions, tax-engine, expense-categories, upload, invoices.
+The running app already implements the baseline: auth, onboarding, categories, transactions, receipts, one-line invoices, the tax summary, and the React pages named in [step 12](14_step12_react_pages.md). Workplaces, massage fields, hourly bonuses, the daily income summary, saved clients, and invoices built from those records are specified below and are **not implemented** until [steps 13–17](02_project_plans.md) pass. A section that the running code still does differently says so.
 
-Phase 2 from the proposal is out of scope and is listed at the end. It is not quietly added to a payload.
+Every clause below cites the flow step or the entity that requires it. Backend modules follow the same ownership: auth, transactions, tax-engine, expense-categories, upload, invoices, and, from the later steps, workplaces, hourly-bonuses, income-summary, and clients.
+
+Phase 2 from the proposal is out of scope and is listed at the end. It is not quietly added to a payload. Day and month invoice lines are step 17, not Phase 2.
 
 ## Endpoints
 
@@ -23,12 +25,30 @@ Phase 2 from the proposal is out of scope and is listed at the end. It is not qu
 | POST | `/transactions/:id/receipt` | multipart field `file` | yes |
 | GET | `/transactions/:id/receipt` | — | yes |
 | DELETE | `/transactions/:id/receipt` | — | yes |
-| POST | `/invoices` | `{ clientName, service, amountPence, issuedOn? }` | yes |
+| POST | `/invoices` | see Invoice | yes |
 | GET | `/invoices` | `skip`, `limit` | yes |
+| GET | `/invoices/preview` | recipient, period | yes |
 | GET | `/invoices/:id` | — | yes |
 | PATCH | `/invoices/:id` | `{ status: "paid", paidOn? }` | yes |
 | GET | `/invoices/:id/pdf` | — | yes |
 | GET | `/tax/summary` | `taxYear` (int, optional) | yes |
+| POST | `/workplaces` | `{ name, kind }` | yes |
+| GET | `/workplaces` | `skip`, `limit` | yes |
+| POST | `/hourly-bonuses` | see Hourly bonus | yes |
+| GET | `/hourly-bonuses` | `skip`, `limit`, optional `workplaceId`, `date` | yes |
+| GET | `/hourly-bonuses/:id` | — | yes |
+| PATCH | `/hourly-bonuses/:id` | partial Hourly bonus fields | yes |
+| DELETE | `/hourly-bonuses/:id` | — | yes |
+| GET | `/income/summary` | `date` (optional) | yes |
+| POST | `/clients` | `{ name }` | yes |
+| GET | `/clients` | `skip`, `limit` | yes |
+| GET | `/clients/:id` | — | yes |
+| PATCH | `/clients/:id` | `{ name }` | yes |
+| DELETE | `/clients/:id` | — | yes |
+
+`GET /invoices/preview` is registered before `GET /invoices/:id` so the path `preview` is not parsed as an id.
+
+Rows from `POST /workplaces` through `DELETE /clients` are **not implemented**. `GET /invoices/preview` is **not implemented**. The one-line `POST /invoices` body below is what the running code accepts. [Step 17](19_step17_invoices_from_records.md) replaces that body.
 
 Authenticated routes require `Authorization: Bearer <accessToken>`. A missing or invalid token is `401`.
 
@@ -38,7 +58,7 @@ Logging a swipe is one request (`POST /transactions`). Attaching a photo is a se
 
 Money is an integer number of pence. Mileage for 2026–27 is 55p, and the tax engine is a pure function with unit tests (proposal: tax logic stays isolated from HTTP). A float would make those totals ambiguous.
 
-Dates that are a civil day (`occurredOn`, `issuedOn`, `paidOn`, tax-year bounds) are `DD-MM-YYYY`. Timestamps (`onboardedAt`, `expiresAt`) are ISO 8601. "Today" and the default tax year use the calendar date in `Europe/London`. The tax year turns on 6 April, which is a UK civil date; UTC would pick the wrong day around midnight.
+Dates that are a civil day (`occurredOn`, `issuedOn`, `paidOn`, invoice period bounds, the daily-summary `date`, tax-year bounds) are `DD-MM-YYYY`. Timestamps (`onboardedAt`, `expiresAt`, `createdAt`, `updatedAt`) are ISO 8601. "Today" and the default tax year use the calendar date in `Europe/London`. The tax year turns on 6 April, which is a UK civil date; UTC would pick the wrong day around midnight.
 
 `taxYear=2026` means 6 April 2026 through 5 April 2027 (`06-04-2026` through `05-04-2027`). This spec implements that year only. Any other `taxYear` is `400`. `occurredOn`, `issuedOn`, and `paidOn` must fall inside that same window; a date outside it is `400` with message `"Date is outside the 2026-27 tax year"`.
 
@@ -103,7 +123,7 @@ The target user is a sole trader. Legal form is not a field. `practiceType` is t
 
 `flat_rate` rates for 2026–27, car or van: **55p** per mile for the first 10,000 business miles in the tax year, **25p** after that. Motorcycle rates are out of scope.
 
-Transactions, invoices, and the tax summary require a completed onboarding. Calling them before that is `403`:
+Transactions, invoices, the tax summary, workplaces, hourly bonuses, the daily income summary, and clients require a completed onboarding. Calling them before that is `403`:
 
 ```json
 { "message": "Complete onboarding before using this resource", "error": "Forbidden", "statusCode": 403 }
@@ -190,6 +210,69 @@ Rules, checked against the merged body:
 
 `PATCH /transactions/:id` accepts any subset of `occurredOn`, `note`, `amountPence`, `categorySlug`, and `miles`. `type` is not on the DTO; sending it is a validation error. The merged row is checked with the same rules. `invoiceId` is not client-writable.
 
+### Massage income (step 14, not implemented)
+
+The running create and update DTOs do not accept the fields in this subsection. [Step 14](16_step14_massage_income.md) adds them on the same `Transaction` model. There is no second income table.
+
+```ts
+type MassageType =
+  | "deep_tissue"
+  | "thai_oil"
+  | "thai_yoga"
+  | "aroma"
+  | "pregnancy"
+  | "lymphatic"
+  | "foot"
+  | "swedish"
+  | "back_neck"
+  | "sport"
+  | "hot_stone"
+  | "other";
+```
+
+| Value | Name on a line or in the feed |
+| --- | --- |
+| `deep_tissue` | Deep Tissue |
+| `thai_oil` | Thai Oil Massage |
+| `thai_yoga` | Thai Yoga |
+| `aroma` | Aroma |
+| `pregnancy` | Pregnancy |
+| `lymphatic` | Lymphatic |
+| `foot` | Foot Massage |
+| `swedish` | Swedish |
+| `back_neck` | Back & Neck |
+| `sport` | Sport Massage |
+| `hot_stone` | Hot Stone |
+| `other` | Other |
+
+After step 14, income may also send:
+
+```ts
+interface MassageIncomeFields {
+  massageType?: MassageType;
+  customMassageType?: string;   // 1–100 characters, required only when massageType is "other"
+  basePence?: number;           // integer, 1 .. 100_000_000, required when massageType is set
+  additionalFeePence?: number;  // integer, 0 .. 100_000_000, default 0; the user types this per record
+  workplaceId?: number;         // an existing workplace owned by this user
+}
+```
+
+`createdAt` and `updatedAt` are present on every transaction after step 14, as ISO 8601. The client does not send them.
+
+Rules, checked in the service after the pipe:
+
+- Cash income may still send only `amountPence`. Massage keys are then omitted on the response.
+- When `massageType` is set, `basePence` is required. `additionalFeePence` omitted means `0` and the response includes `0`. The server sets `amountPence = basePence + additionalFeePence`. A client `amountPence` that is not that sum is `400` `"Amount must equal base plus additional fee"`. If the sum is above `100_000_000`, the message is `400` `"Amount is above the maximum"`.
+- The fee is whatever the user entered. The server does not look up a fee from the massage type.
+- `customMassageType` is required when the type is `other`, and forbidden otherwise. Missing: `400` `"Custom massage type is required"`. Present on another type: `400` `"Custom massage type is only valid for other"`.
+- A massage type on an expense is `400` `"Massage type is only valid on income"`. A base, a fee, or a custom type on an expense is `400` `"Additional fee is only valid on massage income"`. `workplaceId` on an expense is `400` `"Workplace is only valid on income"`.
+- `workplaceId` must be a workplace owned by the token user. A missing row and another user's id are both `404` `"Workplace <id> not found"`. The transaction stores the id, not a copy of the name.
+- `PATCH` may change these fields. The merged row is checked again, and `amountPence` is recomputed when `basePence` is set. `type` stays off the update DTO.
+
+[Step 17](19_step17_invoices_from_records.md) adds optional `clientId` on income. A row may set `workplaceId` or `clientId`, not both. Both is `400` `"Income refers to a workplace or a client, not both"`. Another user's client is `404` `"Client <id> not found"`. That field is **not implemented** until step 17.
+
+Postman, after step 14, with Bearer `{{token}}` and a workplace id from step 13: `POST /transactions` with `type` `income`, `massageType` `swedish`, `basePence` `1000`, `additionalFeePence` `200`, and `workplaceId` returns `201`. `amountPence` is `1200`. `additionalFeePence` `200` is £2. The same body with `additionalFeePence` `-1` is `400` and `message` is an array. An expense body that also sends `massageType` is `400` `"Massage type is only valid on income"`. `massageType` `other` without `customMassageType` is `400` `"Custom massage type is required"`. A list of one income and one expense on the same day returns the income first. `createdAt` and `updatedAt` are ISO 8601 strings. `npm test` still passes.
+
 A transaction that carries `invoiceId` is immutable here. `PATCH` or `DELETE` on it is `409`:
 
 ```json
@@ -209,6 +292,8 @@ For every flat-rate mileage row in a tax year, ordered by `occurredOn` ascending
 Creating, updating, or deleting a mileage row recomputes **every** mileage row in that tax year. A backdated entry changes later amounts. One row of 11,000 miles at the start of the year is `575_000` pence (£5,750): `10_000 × 55 + 1_000 × 25`.
 
 ## Receipt (flow step 3; proposal: upload)
+
+A photo is optional. `POST /transactions` never takes a file. Saving income or an expense with no upload returns `201` and `hasReceipt: false`, and it does not create a `Receipt` row. The upload routes stay for any transaction that has a photo, including expenses.
 
 One photo per transaction. `POST /transactions/:id/receipt` is `multipart/form-data` with a single field `file`.
 
@@ -242,7 +327,9 @@ No photo yet, and the transaction exists: `404` `{ "message": "Receipt for trans
 
 ## Invoice (flow step 4; proposal: Invoice)
 
-One line. Client, service, amount, then a PDF. That is the whole MVP invoice.
+The running code matches this section: one line, and paying creates the income row. [Step 17](19_step17_invoices_from_records.md) supersedes creation and payment for new invoices. It does not delete rows this section already stored. Read [Invoices from records](#invoices-from-records-step-17-not-implemented) before treating this section as the lasting rule.
+
+One line. Client, service, amount, then a PDF. That is the baseline invoice.
 
 ```ts
 interface CreateInvoice {
@@ -314,7 +401,7 @@ interface TaxSummary {
 }
 ```
 
-`incomePence` is the sum of income transactions with `occurredOn` inside the period. That includes swiped income and invoice income created on pay. `allowableExpensesPence` is the sum of expense transactions in the period. A loss stays visible on `netProfitPence`. Tax and National Insurance use `taxableProfitPence`.
+`incomePence` is the sum of income transactions with `occurredOn` inside the period. That includes swiped income and, until step 17, invoice income created on pay. After [step 16](18_step16_daily_income_summary.md) it also adds hourly-bonus `totalPence` for days inside the period, once. It does not add `basePence` on top of `amountPence`, and it does not add invoice `amountPence`. With no bonus rows the extra sum is 0, so the step 9 check is unchanged. `allowableExpensesPence` is the sum of expense transactions in the period. A loss stays visible on `netProfitPence`. Tax and National Insurance use `taxableProfitPence`. The arithmetic stays in `calculateTaxSummary`. The handler only loads the two sums.
 
 Rates are England, Wales, and Northern Ireland for 2026–27 ([GOV.UK: Income Tax](https://www.gov.uk/income-tax-rates), [GOV.UK: self-employed National Insurance](https://www.gov.uk/self-employed-national-insurance-rates)).
 
@@ -360,7 +447,7 @@ The arithmetic above is the contract of the tax-engine function. The handler loa
 
 ## List envelope and pagination
 
-`GET /transactions` and `GET /invoices` return:
+`GET /transactions`, `GET /invoices`, `GET /workplaces`, `GET /hourly-bonuses`, and `GET /clients` return:
 
 ```ts
 interface ListResponse<T> {
@@ -371,13 +458,237 @@ interface ListResponse<T> {
 }
 ```
 
-Transactions are ordered by `occurredOn` descending, then `id` descending, so the latest swipe is first in the feed. Invoices are ordered by `issuedOn` descending, then `id` descending.
+Until [step 14](16_step14_massage_income.md), transactions are ordered by `occurredOn` descending, then `id` descending. After that step the order is `occurredOn` descending, then `income` before `expense`, then `id` descending. One list is enough for the feed. `type=income` and `type=expense` stay as filters. Invoices are ordered by `issuedOn` descending, then `id` descending.
 
 `limit` is an integer from 1 to 100, default 20. `skip` is an integer ≥ 0, default 0. Outside that range is `400`. The feed asks for a page, not an unbounded dump; 20 matches a phone screen and 100 is the cap. An empty page is `200` with `items: []` and `total: 0`. A new user has an empty feed, and that is a successful response.
 
 `GET /transactions` accepts optional `type=income` or `type=expense`. Any other value is `400`.
 
 `GET /expense-categories` is the bare array above. It is not wrapped and not paginated. There are eight rows.
+
+## Workplace (step 13, not implemented)
+
+A workplace is a spa or a clinic the user bills or works at. The transaction stores `workplaceId`. It does not copy the name. Invoice issue copies the name onto the invoice, in step 17, so a later rename does not rewrite an issued invoice.
+
+```ts
+interface Workplace {
+  id: number;
+  name: string;
+  kind: "spa" | "clinic";
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+`POST /workplaces` body:
+
+```ts
+interface CreateWorkplace {
+  name: string;              // trimmed, then 1–200 characters
+  kind: "spa" | "clinic";
+}
+```
+
+`201` returns the `Workplace`. The same user, the same `kind`, and the same name ignoring case is `409`:
+
+```json
+{ "message": "Workplace already saved", "error": "Conflict", "statusCode": 409 }
+```
+
+`North Spa` and `north spa` are the same name. A spa and a clinic may share a display name. The stored name is the trimmed text from the first save.
+
+`GET /workplaces` uses the list envelope. Order is `name` ascending, then `id` ascending. Only this user's rows are returned.
+
+Bearer is required. Before onboarding the response is `403` `"Complete onboarding before using this resource"`. A missing token is `401` `"Unauthorized"`.
+
+Postman: `POST` `{ "name": "North Spa", "kind": "spa" }` returns `201`. The same name with different capital letters returns `409` `"Workplace already saved"`. `{ "name": "North Spa", "kind": "clinic" }` returns `201`. `GET /workplaces` with a second user's token does not include the first user's ids. An empty `name` or `kind` `"hotel"` is `400` and `message` is an array.
+
+## Hourly bonus (step 15, not implemented)
+
+A bonus counts only minutes the user recorded as bonus-eligible. Working extra hours does not create a bonus by itself. The bonus is not an income transaction. The daily summary and the tax summary each add `totalPence` once. An invoice line snapshots that total and does not cause a second add when the invoice is paid.
+
+Hours are stored as `eligibleMinutes`, an integer from 1 to 1440. One minute is the precision. 90 minutes is 1.5 hours. The client does not send a fractional hour and does not send `totalPence`.
+
+```ts
+interface HourlyBonus {
+  id: number;
+  workplaceId: number;
+  occurredOn: string;         // DD-MM-YYYY
+  eligibleMinutes: number;
+  ratePencePerHour: number;   // integer pence, for example £2 is 200
+  totalPence: number;         // server-computed
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+`POST /hourly-bonuses`:
+
+```ts
+interface CreateHourlyBonus {
+  workplaceId: number;
+  occurredOn?: string;        // default: today in Europe/London
+  eligibleMinutes: number;    // integer, 1 .. 1440
+  ratePencePerHour: number;   // integer, 1 .. 100_000_000
+  note?: string;              // 1–500 characters when present
+}
+```
+
+`totalPence` is `round(eligibleMinutes * ratePencePerHour / 60)`, half away from zero, for a positive product. Divide the product by 60. If the remainder is 30 or more, add one penny. 90 minutes at 200 pence per hour is `300`. The function lives next to the bonus service and has a unit test. The controller does not contain the division.
+
+`201` returns the `HourlyBonus`. One row per user, workplace, and civil date. A second create for that triple is `409` `"Hourly bonus already recorded for this workplace and date"`. The workplace must belong to the user, or the response is `404` `"Workplace <id> not found"`. The date must fall in the 2026–27 tax year.
+
+`GET /hourly-bonuses` uses the list envelope, ordered by `occurredOn` descending, then `id` descending. Optional query `workplaceId` and `date` (`DD-MM-YYYY`) filter that user's rows. `GET /hourly-bonuses/:id` returns one row. A missing id and another user's id are `404` `"Hourly bonus <id> not found"`.
+
+`PATCH` accepts any subset of `workplaceId`, `occurredOn`, `eligibleMinutes`, `ratePencePerHour`, and `note`. The server recomputes `totalPence`. Sending `totalPence` is `400` from the pipe, because it is not on the DTO. Moving the row onto a workplace and date that already has a bonus is the same `409`. `DELETE` returns `204`.
+
+Missing `eligibleMinutes`, a negative minute count, a value above 1440, a missing rate, and a negative rate are `400` and `message` is an array.
+
+Postman: create 90 minutes at `ratePencePerHour` `200` and read `totalPence` `300`. Create again for the same workplace and date and read `409`. Omit `eligibleMinutes` and read an array in `message`. Send `eligibleMinutes` `1441` and read `400`.
+
+## Daily income summary (step 16, not implemented)
+
+`GET /income/summary` returns totals computed from income transactions and hourly bonuses. It does not read or write a stored daily total. It does not add invoice amounts. Deleting or editing a source row changes the next response.
+
+Query `date` is optional `DD-MM-YYYY`. Omitted, it is today in `Europe/London`. A date outside the 2026–27 tax year is `400` `"Date is outside the 2026-27 tax year"`.
+
+```ts
+interface DailyIncomeSummary {
+  date: string;
+  basePence: number;
+  additionalFeePence: number;
+  hourlyBonusPence: number;
+  totalPence: number;
+  byWorkplace: WorkplaceDay[];
+  byMassageType: MassageTypeDay[];
+}
+
+interface WorkplaceDay {
+  workplaceId: number;
+  name: string;
+  kind: "spa" | "clinic";
+  basePence: number;
+  additionalFeePence: number;
+  hourlyBonusPence: number;
+  totalPence: number;
+}
+
+interface MassageTypeDay {
+  massageType: MassageType;
+  customMassageType?: string;
+  basePence: number;
+  additionalFeePence: number;
+  totalPence: number;
+}
+```
+
+For each income transaction on that civil date:
+
+- When `basePence` is set, add `basePence` to base and `additionalFeePence` (or 0) to fees. Do not also add `amountPence`.
+- When `basePence` is absent, add `amountPence` to base and add nothing to fees.
+
+`hourlyBonusPence` is the sum of bonus `totalPence` on that date. `totalPence` is base plus fees plus bonuses.
+
+`byWorkplace` has one object per workplace that has income or a bonus that day. Income with no workplace stays in the top-level totals and is absent from `byWorkplace`. `byMassageType` includes only rows that have `massageType`. Rows with the same type and the same custom text are one bucket. Different custom text stays separate. Cash income with no massage type stays in the top-level base and is absent here.
+
+An empty day is `200` with every pence field `0` and both arrays empty.
+
+The grouping function is pure and unit-tested: inputs of base `1000`, fee `200`, and bonus `300` return `totalPence` `1500`, and adding the transaction `amountPence` again fails that test. The handler loads rows and calls it.
+
+`GET /tax/summary` adds the same bonus `totalPence` values once for the tax year, inside the handler, on top of income `amountPence`. It still calls `calculateTaxSummary` with the two sums. No bonus rows means the step 9 figures do not move.
+
+Postman: one Swedish income with `basePence` `1000` and `additionalFeePence` `200`, plus a bonus of `totalPence` `300` on the same date, returns `basePence` `1000`, `additionalFeePence` `200`, `hourlyBonusPence` `300`, `totalPence` `1500`. Delete that income. The next summary drops the base and the fee and keeps the bonus. `GET /tax/summary` for a user with that bonus is `300` higher than the same user with the bonus deleted, and it is not `600` higher. An issued invoice does not change this summary.
+
+## Client (step 17, not implemented)
+
+A client is a person the user invoices, distinct from a workplace. The feed reuses the id. The invoice copies the name at issue time.
+
+```ts
+interface Client {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+`POST /clients` takes `{ name }` trimmed to 1–200 characters and returns `201`. The same user and the same name ignoring case is `409` `"Client already saved"`. `GET /clients` uses the list envelope, ordered by `name` ascending, then `id` ascending. `GET /clients/:id` returns one. A missing id and another user's id are `404` `"Client <id> not found"`.
+
+`PATCH /clients/:id` takes `{ name }` and returns `200`. A rename does not change `recipientName` on an invoice already issued. `DELETE` returns `204`. A client referenced by a transaction or an invoice is `409` `"Client is used by a record"`.
+
+Postman: create `Ada Client`, create `ada client`, and read `409` on the second. With another user's token, `GET /clients/:id` for the first id is `404`.
+
+## Invoices from records (step 17, not implemented)
+
+Earned income is the feed transaction and the hourly bonus. An invoice is a bill for a recipient and a period. Creating an invoice does not insert a transaction. Paying it does not insert a transaction. Rows that step 11 already created on pay stay where they are, including their `invoiceId`. A transaction that still has `invoiceId` stays immutable with `409` `"Invoice income is changed by updating the invoice"`.
+
+New invoices do not set `invoiceId` on the source transaction. The link is the line's `sourceTransactionId` or `sourceBonusId`. Those source rows stay editable. The issued lines do not change when the source changes. Deleting a source sets the line's source id to null and leaves the line amounts in place. The next daily summary no longer includes the deleted source. The invoice total does not change.
+
+```ts
+interface InvoiceLine {
+  kind: "service" | "additional_fee" | "hourly_bonus";
+  description: string;
+  quantity: number;
+  quantityUnit: "session" | "minute";
+  ratePence: number;
+  amountPence: number;
+  occurredOn: string;
+  sourceTransactionId?: number;
+  sourceBonusId?: number;
+}
+
+interface RecordedInvoice {
+  id: number;
+  number: string;
+  recipientKind: "spa" | "clinic" | "client";
+  recipientName: string;
+  workplaceId?: number;
+  clientId?: number;
+  period: "day" | "month";
+  periodStart: string;
+  periodEnd: string;
+  issuedOn: string;
+  amountPence: number;
+  status: "issued" | "paid";
+  paidOn?: string;
+  lines: InvoiceLine[];
+  transactionId?: number;   // only on a baseline invoice that step 11 already linked
+}
+```
+
+`clientName` and `service` remain on invoices created before step 17. New invoices omit them. `recipientName` is the workplace or client name copied at creation.
+
+`GET /invoices/preview` and `POST /invoices` take the same fields. Preview is a query. Create is a JSON body. Preview writes nothing.
+
+```ts
+interface InvoiceFromRecords {
+  recipientKind: "spa" | "clinic" | "client";
+  workplaceId?: number;     // required for spa and clinic
+  clientId?: number;        // required for client
+  period: "day" | "month";
+  date?: string;            // required when period is day
+  month?: number;           // 1 .. 12, required when period is month
+  year?: number;            // required when period is month
+  issuedOn?: string;        // default: today in Europe/London
+}
+```
+
+The workplace's `kind` must equal `recipientKind`. A clinic id sent as a spa is `400` `"Workplace kind does not match recipient"`. A workplace or client the user does not own is `404` with `Workplace <id> not found` or `Client <id> not found`. Both ids are optional on the DTO. `workplaceId` on a client recipient, or `clientId` on a spa or clinic recipient, is `400` `"Recipient does not take that id"`. A stored income row that has both `workplaceId` and `clientId` is `400` `"Income refers to a workplace or a client, not both"` when it is saved. That row is not eligible to bill.
+
+`period` `day` uses that civil `date` as both bounds. `period` `month` uses the first and last civil day of that month, then clips both ends to `06-04-2026` through `05-04-2027`. A date or a month with no day inside that window is `400` `"Date is outside the 2026-27 tax year"`. `issuedOn` uses the same window. It may differ from the period.
+
+Eligible income is this user's `income` rows whose `occurredOn` is inside the clipped period, which are not already referenced by an invoice line, and which match the recipient: `workplaceId` for a spa or clinic, `clientId` for a client. Expenses are never eligible. A row that has `invoiceId` set is not eligible. Eligible bonuses are this user's bonuses for that workplace and period that are not already referenced by an invoice line. Client invoices do not include bonuses.
+
+Lines are ordered by `occurredOn` ascending, then service, then additional fee, then hourly bonus. A monthly invoice uses that order as the breakdown by date. The line builder is a pure function. For each eligible income it emits a `service` line: `quantity` 1, `quantityUnit` `"session"`, `ratePence` and `amountPence` equal to `basePence` when that is set, otherwise `amountPence`. `description` is the massage name from the table above, the custom text when the type is `other`, or `"Income"` when there is no massage type. When `additionalFeePence` is greater than 0 it also emits an `additional_fee` line with quantity 1, `quantityUnit` `"session"`, and that fee as both rate and amount. Each eligible bonus emits an `hourly_bonus` line: `quantity` is `eligibleMinutes`, `quantityUnit` `"minute"`, `ratePence` is `ratePencePerHour`, `amountPence` is the stored `totalPence`, `description` is `"Hourly bonus"`.
+
+`amountPence` on the invoice is the sum of the line amounts. The client cannot send it. Preview returns `200` with `lines`, `amountPence`, the recipient, and the period bounds. An empty eligible set is `200` with `lines: []` and `amountPence: 0`. `POST` of an empty set is `400` `"No records to invoice for this recipient and period"`. `POST` of a non-empty set returns `201` and the `RecordedInvoice`, status `issued`, with the lines stored. A later preview or create skips those sources. There is no second bill for the same work.
+
+`PATCH` is still only `{ status: "paid", paidOn? }`. `paidOn` defaults to today, must be on or after `issuedOn`, and must sit in the tax year. The handler sets status and `paidOn`. It does not create a transaction. A second pay is `409` `"Invoice is already paid"`.
+
+`GET /invoices/:id/pdf` is unchanged in status and headers. The PDF builder stays a pure function of the invoice and the user's name. For an invoice with lines it draws the recipient name, the period, each line's description, quantity, rate, and amount, and the total. A baseline invoice with no lines still draws the single client, service, and amount. The unit test does not use HTTP. The bytes still start with `%PDF`.
+
+Postman, after steps 13–16: save a spa, log Swedish income of base `1000` and fee `200` on `01-05-2026` for that spa, log a bonus of 90 minutes at `200` pence per hour on that day. `GET /invoices/preview` for that spa, `period` `day`, and that date returns three lines and `amountPence` `1500` (service 1000, fee 200, bonus 300). The same spa with `period` `month`, `month` `5`, and `year` `2026` includes that day and excludes a row dated `01-06-2026`. `POST /invoices` with the same fields returns `201`. `GET /transactions?type=income` has no new row whose note is the invoice number. `PATCH` to `paid` returns `200` with `paidOn` and still no new income row. `GET /invoices/:id` after a `PATCH` of the source transaction's `basePence` still shows the original line amount. A second `POST` for that day and spa is `400` `"No records to invoice for this recipient and period"`. A clinic workplace and a saved client each get their own preview that does not include the spa's rows. Another user's workplace id is `404`. `GET /invoices/:id/pdf` is `200` with `application/pdf`. `npm test` still passes, including the tax, mileage, and PDF tests.
 
 ## Errors
 
@@ -416,23 +727,27 @@ The same shape uses `Invoice <id> not found`. Receipt wording is in the Receipt 
 | --- | --- | --- |
 | Missing or invalid bearer token | 401 | `Unauthorized` |
 | Login mismatch | 401 | `Invalid email or password` |
-| Not onboarded, on transactions, invoices, or tax | 403 | `Complete onboarding before using this resource` |
-| Validation, bad `taxYear`, date outside 2026–27, unknown category, miles/amount clashing with `expenseMethod`, bad receipt type or size, `paidOn` before `issuedOn` | 400 | array, or one of the strings specified above |
+| Not onboarded, on transactions, invoices, tax, workplaces, bonuses, the daily summary, or clients | 403 | `Complete onboarding before using this resource` |
+| Validation, bad `taxYear`, date outside 2026–27, unknown category, miles/amount clashing with `expenseMethod`, bad receipt type or size, `paidOn` before `issuedOn`, massage or recipient rules in the later steps | 400 | array, or one of the strings specified above |
 | Duplicate email | 409 | `Email already registered` |
 | Second onboarding | 409 | `Onboarding already completed` |
-| Edit or delete of invoice-linked income | 409 | `Invoice income is changed by updating the invoice` |
+| Edit or delete of income that has `invoiceId` | 409 | `Invoice income is changed by updating the invoice` |
 | Pay an invoice that is already paid | 409 | `Invoice is already paid` |
-| Unknown id | 404 | `<Resource> <id> not found` |
+| Duplicate workplace or client name for this user | 409 | `Workplace already saved` or `Client already saved` |
+| Second bonus for the same user, workplace, and date | 409 | `Hourly bonus already recorded for this workplace and date` |
+| Delete a client that a transaction or invoice still uses | 409 | `Client is used by a record` |
+| Unknown id, including another user's id | 404 | `<Resource> <id> not found` |
 
 ## Out of scope
 
 The proposal's phase 2, plus the limits stated above. These are not endpoints and not optional fields:
 
-- Multi-line invoices, recurring invoices, and emailing an invoice to a client
+- Recurring invoices, and emailing an invoice to a client. Day and month lines are step 17
+- A client-supplied invoice total, bonus total, or `amountPence` that disagrees with base plus fee. The server computes those
 - VAT, including the VAT Flat Rate Scheme
 - Scottish Income Tax, student loans, and reliefs other than the full personal allowance
 - Motorcycle mileage, and changing `expenseMethod` after onboarding
 - A business-use percentage computed by the server
 - User-created categories
-- Editing an invoice-linked transaction through `/transactions`
+- Editing or deleting a transaction that has `invoiceId` through `/transactions`. A step 17 source row has no `invoiceId` and stays editable; the issued line amounts do not follow that edit
 - Any tax year other than 2026–27
