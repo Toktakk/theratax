@@ -181,19 +181,16 @@ import {
       miles: number | null;
     }> {
       if (type === 'income') {
-        if (input.categorySlug !== null) {
-          throw new BadRequestException('categorySlug is not allowed on income');
-        }
-        if (input.miles !== null) {
-          throw new BadRequestException('miles is not allowed on income');
+        if (input.categorySlug !== null || input.miles !== null) {
+          throw new BadRequestException('Income does not take a category or miles');
         }
         if (input.amountPence === null) {
-          throw new BadRequestException('amountPence is required');
+          throw new BadRequestException('Amount is required');
         }
         return { amountPence: input.amountPence, categorySlug: null, miles: null };
       }
       if (input.categorySlug === null) {
-        throw new BadRequestException('categorySlug is required');
+        throw new BadRequestException('Category is required');
       }
       const category = await this.prisma.expenseCategory.findUnique({
         where: { slug: input.categorySlug },
@@ -214,15 +211,15 @@ import {
           throw new BadRequestException('Amount is computed from miles');
         }
         if (input.miles === null) {
-          throw new BadRequestException('miles is required');
+          throw new BadRequestException('Miles are required');
         }
         return { amountPence: null, categorySlug: category.slug, miles: input.miles };
       }
       if (input.milesProvided) {
-        throw new BadRequestException('miles is not allowed for this category');
+        throw new BadRequestException('Miles are only valid for mileage');
       }
       if (input.amountPence === null) {
-        throw new BadRequestException('amountPence is required');
+        throw new BadRequestException('Amount is required');
       }
       return { amountPence: input.amountPence, categorySlug: category.slug, miles: null };
     }
