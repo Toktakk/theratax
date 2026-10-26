@@ -7,33 +7,60 @@ import {
   civilDateFromInput,
   expenseMethodLabel,
   formatPounds,
+  isMassageType,
+  MASSAGE_OPTIONS,
+  massageTypeLabel,
   practiceTypeLabel,
   readAmountPence,
+  readOptionalAmount,
   readWholeNumber,
 } from '../format.ts';
 import { suggestCategory } from '../hint.ts';
 import type {
+  Client,
+  DailyIncomeSummary,
   ExpenseCategory,
   ListResponse,
+  MassageType,
+  MassageTypeDay,
   ReadyUser,
   ReceiptUrl,
   Transaction,
+  Workplace,
+  WorkplaceDay,
 } from '../types.ts';
 
 interface FeedPageProps {
   user: ReadyUser;
 }
 
+interface EntryPayload {
+  type: 'income' | 'expense';
+  occurredOn?: string;
+  note?: string;
+  amountPence?: number;
+  categorySlug?: string;
+  miles?: number;
+  massageType?: MassageType;
+  customMassageType?: string;
+  basePence?: number;
+  additionalFeePence?: number;
+  bonusPence?: number;
+  workplaceId?: number;
+  clientId?: number;
+}
+
 export function FeedPage({ user }: FeedPageProps) {
   const [categories, setCategories] = useState<ExpenseCategory[] | null>(null);
+  const [categoriesError, setCategoriesError] = useState('');
   const [items, setItems] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [listLoading, setListLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const [pageError, setPageError] = useState('');
+  const [listError, setListError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [type, setType] = useState<'income' | 'expense'>('income');
   const [note, setNote] = useState('');
   const [occurredOn, setOccurredOn] = useState('');
   const [pickedSlug, setPickedSlug] = useState('');
@@ -41,23 +68,39 @@ export function FeedPage({ user }: FeedPageProps) {
   const [miles, setMiles] = useState('');
   const [pounds, setPounds] = useState('');
   const [pence, setPence] = useState('');
+  const [massageType, setMassageType] = useState<MassageType | ''>('');
+  const [customMassageType, setCustomMassageType] = useState('');
+  const [party, setParty] = useState('');
+  const [basePounds, setBasePounds] = useState('');
+  const [basePence, setBasePence] = useState('');
+  const [feePounds, setFeePounds] = useState('');
+  const [feePence, setFeePence] = useState('');
+  const [bonusPounds, setBonusPounds] = useState('');
+  const [bonusPence, setBonusPence] = useState('');
+  const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [workplacesLoading, setWorkplacesLoading] = useState(true);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState('');
+  const [summary, setSummary] = useState<DailyIncomeSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState('');
   const [photos, setPhotos] = useState<Record<number, string>>({});
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const noteRef = useRef<HTMLInputElement>(null);
 
   const allowed =
-    categories === null
-      ? []
-      : categoriesForMethod(categories, user.expenseMethod);
+    categories === null ? [] : categoriesForMethod(categories, user.expenseMethod);
   const suggestion = suggestCategory(allowed, note);
-  const categorySlug =
-    pickedNote === note ? pickedSlug : (suggestion?.slug ?? pickedSlug);
+  const categorySlug = pickedNote === note ? pickedSlug : (suggestion?.slug ?? pickedSlug);
   const selected = allowed.find((category) => category.slug === categorySlug);
   const mileage = type === 'expense' && selected?.kind === 'mileage';
+  const massage = type === 'income' && massageType !== '';
   const receiptKey = items
     .filter((item) => item.hasReceipt)
     .map((item) => item.id)
     .join(',');
+  const summaryDate = civilDateFromInput(occurredOn);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,11 +108,53 @@ export function FeedPage({ user }: FeedPageProps) {
       .then((rows) => {
         if (!cancelled) {
           setCategories(rows);
+          setCategoriesError('');
         }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setPageError(messageOf(error));
+          setCategoriesError(messageOf(error));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWorkplacesLoading(true);
+    setClientsLoading(true);
+    request<ListResponse<Workplace>>('/workplaces?limit=100')
+      .then((body) => {
+        if (!cancelled) {
+          setWorkplaces(body.items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDirectoryError(messageOf(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setWorkplacesLoading(false);
+        }
+      });
+    request<ListResponse<Client>>('/clients?limit=100')
+      .then((body) => {
+        if (!cancelled) {
+          setClients(body.items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDirectoryError(messageOf(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setClientsLoading(false);
         }
       });
     return () => {
@@ -84,12 +169,12 @@ export function FeedPage({ user }: FeedPageProps) {
         if (!cancelled) {
           setItems(body.items);
           setTotal(body.total);
-          setPageError('');
+          setListError('');
         }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setPageError(messageOf(error));
+          setListError(messageOf(error));
         }
       })
       .finally(() => {
@@ -101,6 +186,36 @@ export function FeedPage({ user }: FeedPageProps) {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSummary(null);
+    setSummaryError('');
+    setSummaryLoading(true);
+    const path =
+      summaryDate === undefined
+        ? '/income/summary'
+        : `/income/summary?date=${encodeURIComponent(summaryDate)}`;
+    request<DailyIncomeSummary>(path)
+      .then((body) => {
+        if (!cancelled) {
+          setSummary(withBonus(body));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setSummaryError(messageOf(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSummaryLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [summaryDate, reloadKey]);
 
   useEffect(() => {
     if (receiptKey === '') {
@@ -134,24 +249,35 @@ export function FeedPage({ user }: FeedPageProps) {
     };
   }, [receiptKey]);
 
+  function clearEntry() {
+    setNote('');
+    setOccurredOn('');
+    setPounds('');
+    setPence('');
+    setMiles('');
+    setPickedSlug('');
+    setPickedNote(null);
+    setMassageType('');
+    setCustomMassageType('');
+    setParty('');
+    setBasePounds('');
+    setBasePence('');
+    setFeePounds('');
+    setFeePence('');
+    setBonusPounds('');
+    setBonusPence('');
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError('');
-    const payload: {
-      type: 'income' | 'expense';
-      occurredOn?: string;
-      note?: string;
-      amountPence?: number;
-      categorySlug?: string;
-      miles?: number;
-    } = { type };
+    const payload: EntryPayload = { type };
     const trimmedNote = note.trim();
     if (trimmedNote !== '') {
       payload.note = trimmedNote;
     }
-    const civil = civilDateFromInput(occurredOn);
-    if (civil !== undefined) {
-      payload.occurredOn = civil;
+    if (summaryDate !== undefined) {
+      payload.occurredOn = summaryDate;
     }
 
     if (type === 'expense') {
@@ -177,6 +303,45 @@ export function FeedPage({ user }: FeedPageProps) {
           payload.amountPence = money.amountPence;
         }
       }
+    } else if (massageType !== '') {
+      payload.massageType = massageType;
+      const chosen = chosenParty(party);
+      if (chosen.workplaceId !== undefined) {
+        payload.workplaceId = chosen.workplaceId;
+      }
+      if (chosen.clientId !== undefined) {
+        payload.clientId = chosen.clientId;
+      }
+      if (massageType === 'other') {
+        const custom = customMassageType.trim();
+        if (custom !== '') {
+          payload.customMassageType = custom;
+        }
+      }
+      const base = readOptionalAmount(basePounds, basePence);
+      if (!base.ok) {
+        setFormError(base.message);
+        return;
+      }
+      if (base.amountPence !== undefined) {
+        payload.basePence = base.amountPence;
+      }
+      const fee = readOptionalAmount(feePounds, feePence);
+      if (!fee.ok) {
+        setFormError(fee.message);
+        return;
+      }
+      if (fee.amountPence !== undefined) {
+        payload.additionalFeePence = fee.amountPence;
+      }
+      const bonus = readOptionalAmount(bonusPounds, bonusPence);
+      if (!bonus.ok) {
+        setFormError(bonus.message);
+        return;
+      }
+      if (bonus.amountPence !== undefined) {
+        payload.bonusPence = bonus.amountPence;
+      }
     } else {
       const money = readAmountPence(pounds, pence);
       if (!money.ok) {
@@ -191,13 +356,7 @@ export function FeedPage({ user }: FeedPageProps) {
     setSaving(true);
     try {
       await request('/transactions', { method: 'POST', json: payload });
-      setNote('');
-      setOccurredOn('');
-      setPounds('');
-      setPence('');
-      setMiles('');
-      setPickedSlug('');
-      setPickedNote(null);
+      clearEntry();
       setReloadKey((value) => value + 1);
       noteRef.current?.focus();
     } catch (error: unknown) {
@@ -243,142 +402,227 @@ export function FeedPage({ user }: FeedPageProps) {
       <div>
         <h2>Feed</h2>
         <p className="muted">
-          {practiceTypeLabel(user.practiceType)} ·{' '}
-          {expenseMethodLabel(user.expenseMethod)}
+          {practiceTypeLabel(user.practiceType)} · {expenseMethodLabel(user.expenseMethod)}
         </p>
       </div>
-      <form className="card stack" autoComplete="off" onSubmit={onSubmit}>
-        <fieldset>
-          <legend>Type</legend>
-          <div className="inline-choices">
-            <label className="choice">
-              <input
-                type="radio"
-                name="entryType"
-                value="expense"
-                checked={type === 'expense'}
-                onChange={() => {
-                  setType('expense');
-                }}
-              />
-              Expense
-            </label>
-            <label className="choice">
-              <input
-                type="radio"
-                name="entryType"
-                value="income"
-                checked={type === 'income'}
-                onChange={() => {
-                  setType('income');
-                }}
-              />
-              Income
-            </label>
-          </div>
-        </fieldset>
-        <label className="field">
-          Note
-          <input
-            ref={noteRef}
-            value={note}
-            maxLength={500}
-            autoFocus
-            onChange={(event) => {
-              setNote(event.target.value);
-            }}
-          />
-        </label>
-        {type === 'expense' && suggestion !== null ? (
-          <p className="hint" aria-live="polite">
-            Suggested: {suggestion.name}
-          </p>
-        ) : null}
-        <label className="field">
-          Date
-          <input
-            type="date"
-            value={occurredOn}
-            onChange={(event) => {
-              setOccurredOn(event.target.value);
-            }}
-          />
-          <span className="muted">Leave blank for today.</span>
-        </label>
-        {type === 'expense' ? (
+      <div className="card stack">
+        <form className="stack" autoComplete="off" onSubmit={onSubmit}>
+          <fieldset>
+            <legend>Type</legend>
+            <div className="inline-choices">
+              <label className="choice">
+                <input
+                  type="radio"
+                  name="entryType"
+                  value="income"
+                  checked={type === 'income'}
+                  onChange={() => {
+                    setType('income');
+                  }}
+                />
+                Income
+              </label>
+              <label className="choice">
+                <input
+                  type="radio"
+                  name="entryType"
+                  value="expense"
+                  checked={type === 'expense'}
+                  onChange={() => {
+                    setType('expense');
+                  }}
+                />
+                Expense
+              </label>
+            </div>
+          </fieldset>
           <label className="field">
-            Category
-            <select
-              value={categorySlug}
-              disabled={categories === null}
-              onChange={(event) => {
-                setPickedSlug(event.target.value);
-                setPickedNote(note);
-              }}
-            >
-              <option value="">Choose a category</option>
-              {allowed.map((category) => (
-                <option key={category.slug} value={category.slug}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {mileage ? (
-          <label className="field">
-            Miles
+            Note
             <input
-              inputMode="numeric"
-              value={miles}
+              ref={noteRef}
+              value={note}
+              maxLength={500}
+              autoFocus
               onChange={(event) => {
-                setMiles(event.target.value);
+                setNote(event.target.value);
               }}
             />
-            <span className="muted">
-              Enter miles. The amount is calculated for you.
-            </span>
           </label>
-        ) : (
-          <div className="money-fields">
+          {type === 'expense' && suggestion !== null ? (
+            <p className="hint" aria-live="polite">
+              Suggested: {suggestion.name}
+            </p>
+          ) : null}
+          <label className="field">
+            Date
+            <input
+              type="date"
+              value={occurredOn}
+              onChange={(event) => {
+                setOccurredOn(event.target.value);
+              }}
+            />
+            <span className="muted">Leave blank for today.</span>
+          </label>
+          {type === 'income' ? (
             <label className="field">
-              Pounds
+              Massage Type
+              <select
+                value={massageType}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === '' || isMassageType(value)) {
+                    setMassageType(value);
+                  }
+                }}
+              >
+                <option value="">Cash income</option>
+                {MASSAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="field">
+              Category
+              <select
+                value={categorySlug}
+                disabled={categories === null}
+                onChange={(event) => {
+                  setPickedSlug(event.target.value);
+                  setPickedNote(note);
+                }}
+              >
+                <option value="">Choose a category</option>
+                {allowed.map((category) => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {massage ? (
+            <>
+              <label className="field">
+                Workplace or client
+                <select
+                  value={party}
+                  onChange={(event) => {
+                    setParty(event.target.value);
+                  }}
+                >
+                  <option value="">Neither</option>
+                  <optgroup label="Workplaces">
+                    {workplaces.map((workplace) => (
+                      <option key={`workplace-${workplace.id}`} value={`workplace:${workplace.id}`}>
+                        {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Clients">
+                    {clients.map((client) => (
+                      <option key={`client-${client.id}`} value={`client:${client.id}`}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </label>
+              {workplacesLoading ? <p className="muted">Loading workplaces…</p> : null}
+              {clientsLoading ? <p className="muted">Loading clients…</p> : null}
+              <FormError message={directoryError} />
+              {massageType === 'other' ? (
+                <label className="field">
+                  Massage type name
+                  <input
+                    value={customMassageType}
+                    maxLength={100}
+                    onChange={(event) => {
+                      setCustomMassageType(event.target.value);
+                    }}
+                  />
+                </label>
+              ) : null}
+              <MoneyPair
+                legend="Base Massage Income"
+                pounds={basePounds}
+                pence={basePence}
+                onPounds={setBasePounds}
+                onPence={setBasePence}
+              />
+              <MoneyPair
+                legend="Additional Massage Fee"
+                pounds={feePounds}
+                pence={feePence}
+                onPounds={setFeePounds}
+                onPence={setFeePence}
+                hint="Leave empty when nothing was received."
+              />
+              <MoneyPair
+                legend="Bonus"
+                pounds={bonusPounds}
+                pence={bonusPence}
+                onPounds={setBonusPounds}
+                onPence={setBonusPence}
+                hint="Leave empty when nothing was received."
+              />
+            </>
+          ) : null}
+          {type === 'expense' && mileage ? (
+            <label className="field">
+              Miles
               <input
                 inputMode="numeric"
-                value={pounds}
+                value={miles}
                 onChange={(event) => {
-                  setPounds(event.target.value);
+                  setMiles(event.target.value);
                 }}
               />
+              <span className="muted">Enter miles. The amount is calculated for you.</span>
             </label>
-            <label className="field">
-              Pence
-              <input
-                inputMode="numeric"
-                maxLength={2}
-                value={pence}
-                onChange={(event) => {
-                  setPence(event.target.value);
-                }}
-              />
-            </label>
-          </div>
-        )}
-        <FormError message={formError} />
-        <button
-          className="button-primary"
-          type="submit"
-          disabled={saving || (type === 'expense' && categories === null)}
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-      </form>
-      <FormError message={pageError} />
-      {listLoading && items.length === 0 ? (
-        <p className="muted">Loading entries…</p>
-      ) : null}
-      {!listLoading && pageError === '' && items.length === 0 ? (
-        <p className="muted">No entries yet.</p>
+          ) : null}
+          {type === 'expense' && !mileage ? (
+            <MoneyPair
+              legend="Amount"
+              pounds={pounds}
+              pence={pence}
+              onPounds={setPounds}
+              onPence={setPence}
+            />
+          ) : null}
+          {type === 'income' && !massage ? (
+            <MoneyPair
+              legend="Amount"
+              pounds={pounds}
+              pence={pence}
+              onPounds={setPounds}
+              onPence={setPence}
+            />
+          ) : null}
+          <FormError message={formError} />
+          <FormError message={categoriesError} />
+          <button
+            className="button-primary"
+            type="submit"
+            disabled={saving || (type === 'expense' && categories === null)}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </form>
+      </div>
+      <section className="card stack">
+        <h3>Daily summary{summary === null ? '' : ` · ${summary.date}`}</h3>
+        {summaryLoading ? <p className="muted">Loading summary…</p> : null}
+        {summaryError !== '' ? <FormError message={summaryError} /> : null}
+        {summary !== null && summaryError === '' ? <SummaryFigures summary={summary} /> : null}
+      </section>
+      <FormError message={listError} />
+      {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}
+      {!listLoading && listError === '' && items.length === 0 ? (
+        <p className="muted">Nothing logged yet.</p>
       ) : null}
       {total > items.length ? (
         <p className="muted">
@@ -391,6 +635,8 @@ export function FeedPage({ user }: FeedPageProps) {
             key={item.id}
             item={item}
             categories={categories ?? []}
+            workplaces={workplaces}
+            clients={clients}
             photoUrl={storedValue(photos, item.id)}
             error={storedValue(rowErrors, item.id) ?? ''}
             onFile={onFile}
@@ -401,23 +647,126 @@ export function FeedPage({ user }: FeedPageProps) {
   );
 }
 
+function MoneyPair({
+  legend,
+  pounds,
+  pence,
+  onPounds,
+  onPence,
+  hint,
+}: {
+  legend: string;
+  pounds: string;
+  pence: string;
+  onPounds: (value: string) => void;
+  onPence: (value: string) => void;
+  hint?: string;
+}) {
+  return (
+    <fieldset>
+      <legend>{legend}</legend>
+      <div className="money-fields">
+        <label className="field">
+          Pounds
+          <input
+            inputMode="numeric"
+            value={pounds}
+            onChange={(event) => {
+              onPounds(event.target.value);
+            }}
+          />
+        </label>
+        <label className="field">
+          Pence
+          <input
+            inputMode="numeric"
+            maxLength={2}
+            value={pence}
+            onChange={(event) => {
+              onPence(event.target.value);
+            }}
+          />
+        </label>
+      </div>
+      {hint === undefined ? null : <span className="muted">{hint}</span>}
+    </fieldset>
+  );
+}
+
+function SummaryFigures({ summary }: { summary: DailyIncomeSummary }) {
+  return (
+    <>
+      <dl className="figures">
+        <div>
+          <dt>Base</dt>
+          <dd>{formatPounds(summary.basePence)}</dd>
+        </div>
+        <div>
+          <dt>Additional fees</dt>
+          <dd>{formatPounds(summary.additionalFeePence)}</dd>
+        </div>
+        <div>
+          <dt>Bonus</dt>
+          <dd>{formatPounds(summary.bonusPence)}</dd>
+        </div>
+        <div>
+          <dt>Daily total</dt>
+          <dd>{formatPounds(summary.totalPence)}</dd>
+        </div>
+      </dl>
+      {summary.byWorkplace.length === 0 ? null : (
+        <div className="stack">
+          <h3>By workplace</h3>
+          <ul className="parts">
+            {summary.byWorkplace.map((row) => (
+              <li key={row.workplaceId}>{workplaceLine(row)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {summary.byMassageType.length === 0 ? null : (
+        <div className="stack">
+          <h3>By massage type</h3>
+          <ul className="parts">
+            {summary.byMassageType.map((row) => (
+              <li key={`${row.massageType}:${row.customMassageType ?? ''}`}>{massageLine(row)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+function workplaceLine(row: WorkplaceDay): string {
+  const kind = row.kind === 'spa' ? 'Spa' : 'Clinic';
+  return `${row.name} · ${kind} · base ${formatPounds(row.basePence)} · additional fees ${formatPounds(row.additionalFeePence)} · bonus ${formatPounds(row.bonusPence)} · ${formatPounds(row.totalPence)}`;
+}
+
+function massageLine(row: MassageTypeDay): string {
+  const name = massageTypeLabel(row.massageType, row.customMassageType);
+  return `${name} · base ${formatPounds(row.basePence)} · additional fees ${formatPounds(row.additionalFeePence)} · bonus ${formatPounds(row.bonusPence)} · ${formatPounds(row.totalPence)}`;
+}
+
 function TransactionRow({
   item,
   categories,
+  workplaces,
+  clients,
   photoUrl,
   error,
   onFile,
 }: {
   item: Transaction;
   categories: readonly ExpenseCategory[];
+  workplaces: readonly Workplace[];
+  clients: readonly Client[];
   photoUrl: string | undefined;
   error: string;
   onFile: (transactionId: number, input: HTMLInputElement) => void;
 }) {
-  const label =
-    item.categorySlug === undefined
-      ? null
-      : categoryName(categories, item.categorySlug);
+  const label = item.categorySlug === undefined ? null : categoryName(categories, item.categorySlug);
+  const named = partyName(item, workplaces, clients);
   return (
     <article className={item.type === 'income' ? 'row income' : 'row expense'}>
       <p className="muted">
@@ -425,6 +774,15 @@ function TransactionRow({
         {label === null ? '' : ` · ${label}`}
       </p>
       {item.note !== undefined ? <p className="note">{item.note}</p> : null}
+      {named === null ? null : <p>{named}</p>}
+      {item.massageType === undefined ? null : (
+        <div className="parts">
+          <p>{massageTypeLabel(item.massageType, item.customMassageType)}</p>
+          <p>Base Massage Income {formatPounds(item.basePence ?? 0)}</p>
+          <p>Additional Massage Fee {formatPounds(item.additionalFeePence ?? 0)}</p>
+          <p>Bonus {formatPounds(item.bonusPence ?? 0)}</p>
+        </div>
+      )}
       {item.miles !== undefined ? (
         <p className="amount">
           {item.miles} miles · {formatPounds(item.amountPence)}
@@ -455,10 +813,53 @@ function TransactionRow({
   );
 }
 
-function storedValue(
-  record: Record<number, string>,
-  id: number,
-): string | undefined {
+function partyName(
+  item: Transaction,
+  workplaces: readonly Workplace[],
+  clients: readonly Client[],
+): string | null {
+  if (item.workplaceId !== undefined) {
+    const workplace = workplaces.find((row) => row.id === item.workplaceId);
+    if (workplace === undefined) {
+      return null;
+    }
+    return `${workplace.name} · ${workplace.kind === 'spa' ? 'Spa' : 'Clinic'}`;
+  }
+  if (item.clientId !== undefined) {
+    const client = clients.find((row) => row.id === item.clientId);
+    return client === undefined ? null : client.name;
+  }
+  return null;
+}
+
+function chosenParty(value: string): { workplaceId?: number; clientId?: number } {
+  const workplace = /^workplace:(\d+)$/.exec(value);
+  if (workplace?.[1] !== undefined) {
+    return { workplaceId: Number(workplace[1]) };
+  }
+  const client = /^client:(\d+)$/.exec(value);
+  if (client?.[1] !== undefined) {
+    return { clientId: Number(client[1]) };
+  }
+  return {};
+}
+
+function withBonus(summary: DailyIncomeSummary): DailyIncomeSummary {
+  return {
+    ...summary,
+    bonusPence: summary.bonusPence ?? 0,
+    byWorkplace: summary.byWorkplace.map((row) => ({
+      ...row,
+      bonusPence: row.bonusPence ?? 0,
+    })),
+    byMassageType: summary.byMassageType.map((row) => ({
+      ...row,
+      bonusPence: row.bonusPence ?? 0,
+    })),
+  };
+}
+
+function storedValue(record: Record<number, string>, id: number): string | undefined {
   if (!Object.hasOwn(record, id)) {
     return undefined;
   }

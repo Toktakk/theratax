@@ -46,10 +46,7 @@ export function TaxSummaryPage() {
 
   return (
     <div className="stack">
-      <div>
-        <h2>Tax summary</h2>
-        <p className="muted">{summary.taxYear}</p>
-      </div>
+      <h2>Tax summary</h2>
       <dl className="figures card">
         <div>
           <dt>Period</dt>
@@ -71,7 +68,10 @@ export function TaxSummaryPage() {
         </div>
         <div>
           <dt>Net profit</dt>
-          <dd>{formatPounds(summary.netProfitPence)}</dd>
+          <dd>
+            {formatPounds(summary.netProfitPence)}
+            {summary.netProfitPence < 0 ? ' (loss)' : ''}
+          </dd>
         </div>
         <div>
           <dt>Estimated tax</dt>

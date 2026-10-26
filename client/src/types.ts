@@ -34,6 +34,42 @@ export interface ExpenseCategory {
   kind: CategoryKind;
 }
 
+export type MassageType =
+  | 'deep_tissue'
+  | 'thai_oil'
+  | 'thai_yoga'
+  | 'aroma'
+  | 'pregnancy'
+  | 'lymphatic'
+  | 'foot'
+  | 'swedish'
+  | 'back_neck'
+  | 'sport'
+  | 'hot_stone'
+  | 'body_scrub'
+  | 'other';
+
+export type WorkplaceKind = 'spa' | 'clinic';
+
+export type RecipientKind = 'spa' | 'clinic' | 'client';
+
+export type InvoicePeriod = 'day' | 'month';
+
+export interface Workplace {
+  id: number;
+  name: string;
+  kind: WorkplaceKind;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Client {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Transaction {
   id: number;
   type: 'income' | 'expense';
@@ -44,6 +80,42 @@ export interface Transaction {
   categorySlug?: string;
   miles?: number;
   invoiceId?: number;
+  massageType?: MassageType;
+  customMassageType?: string;
+  basePence?: number;
+  additionalFeePence?: number;
+  bonusPence?: number;
+  workplaceId?: number;
+  clientId?: number;
+}
+
+export interface WorkplaceDay {
+  workplaceId: number;
+  name: string;
+  kind: WorkplaceKind;
+  basePence: number;
+  additionalFeePence: number;
+  bonusPence: number;
+  totalPence: number;
+}
+
+export interface MassageTypeDay {
+  massageType: MassageType;
+  customMassageType?: string;
+  basePence: number;
+  additionalFeePence: number;
+  bonusPence: number;
+  totalPence: number;
+}
+
+export interface DailyIncomeSummary {
+  date: string;
+  basePence: number;
+  additionalFeePence: number;
+  bonusPence: number;
+  totalPence: number;
+  byWorkplace: WorkplaceDay[];
+  byMassageType: MassageTypeDay[];
 }
 
 export interface ReceiptUrl {
@@ -51,16 +123,58 @@ export interface ReceiptUrl {
   expiresAt: string;
 }
 
+export interface InvoiceLine {
+  kind: string;
+  description: string;
+  quantity: number;
+  quantityUnit: string;
+  ratePence: number;
+  amountPence: number;
+  occurredOn: string;
+  sourceTransactionId?: number;
+}
+
+export interface InvoicePreview {
+  recipientKind: RecipientKind;
+  recipientName: string;
+  workplaceId?: number;
+  clientId?: number;
+  period: InvoicePeriod;
+  periodStart: string;
+  periodEnd: string;
+  amountPence: number;
+  lines: InvoiceLine[];
+}
+
+export interface InvoiceDraft {
+  recipientKind: RecipientKind;
+  workplaceId?: number;
+  clientId?: number;
+  period: InvoicePeriod;
+  date?: string;
+  month?: number;
+  year?: number;
+  issuedOn?: string;
+}
+
 export interface Invoice {
   id: number;
   number: string;
-  clientName: string;
-  service: string;
   amountPence: number;
   issuedOn: string;
   status: 'issued' | 'paid';
   paidOn?: string;
+  clientName?: string;
+  service?: string;
   transactionId?: number;
+  recipientKind?: RecipientKind;
+  recipientName?: string;
+  workplaceId?: number;
+  clientId?: number;
+  period?: InvoicePeriod;
+  periodStart?: string;
+  periodEnd?: string;
+  lines?: InvoiceLine[];
 }
 
 export interface TaxSummary {

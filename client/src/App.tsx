@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { clearToken, getToken, onSignedOut, request } from './api.ts';
+import { DirectoryPage } from './pages/DirectoryPage.tsx';
 import { FeedPage } from './pages/FeedPage.tsx';
 import { InvoicePage } from './pages/InvoicePage.tsx';
 import { OnboardingPage } from './pages/OnboardingPage.tsx';
@@ -104,6 +105,7 @@ export default function App() {
       <Shell user={session.user} onLogout={logout}>
         <Routes>
           <Route path="/" element={<FeedPage user={session.user} />} />
+          <Route path="/workplaces" element={<DirectoryPage />} />
           <Route path="/invoices" element={<InvoicePage />} />
           <Route path="/tax" element={<TaxSummaryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -132,6 +134,9 @@ function Shell({
         <nav className="nav">
           <NavLink to="/" end className={navClass}>
             Feed
+          </NavLink>
+          <NavLink to="/workplaces" className={navClass}>
+            Workplace name
           </NavLink>
           <NavLink to="/invoices" className={navClass}>
             Invoices

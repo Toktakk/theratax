@@ -1,9 +1,35 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { downloadFile, messageOf, request } from '../api.ts';
+import { insertByName, SaveClientForm, SaveWorkplaceForm } from '../directory-forms.tsx';
 import { FormError } from '../FormError.tsx';
-import { civilDateFromInput, formatPounds, readAmountPence } from '../format.ts';
-import type { Invoice, ListResponse } from '../types.ts';
+import { civilDateFromInput, formatPounds } from '../format.ts';
+import type {
+  Client,
+  Invoice,
+  InvoiceDraft,
+  InvoiceLine,
+  InvoicePeriod,
+  InvoicePreview,
+  ListResponse,
+  RecipientKind,
+  Workplace,
+} from '../types.ts';
+
+const MONTHS = [
+  { value: 1, label: 'January' },
+  { value: 2, label: 'February' },
+  { value: 3, label: 'March' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'June' },
+  { value: 7, label: 'July' },
+  { value: 8, label: 'August' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'October' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'December' },
+] as const;
 
 export function InvoicePage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -11,20 +37,45 @@ export function InvoicePage() {
   const [pageError, setPageError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [clientName, setClientName] = useState('');
-  const [service, setService] = useState('');
-  const [pounds, setPounds] = useState('');
-  const [pence, setPence] = useState('');
-  const [issuedOn, setIssuedOn] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [payingId, setPayingId] = useState<number | null>(null);
   const [pdfId, setPdfId] = useState<number | null>(null);
-  const [rowError, setRowError] = useState<{ id: number; message: string } | null>(
-    null,
-  );
+  const [rowError, setRowError] = useState<{ id: number; message: string } | null>(null);
+  const [recipientKind, setRecipientKind] = useState<RecipientKind | ''>('');
+  const [workplaceId, setWorkplaceId] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [period, setPeriod] = useState<InvoicePeriod | ''>('');
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
+  const [issuedOn, setIssuedOn] = useState('');
+  const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [workplacesLoading, setWorkplacesLoading] = useState(true);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState('');
+  const [preview, setPreview] = useState<InvoicePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+
+  const draft = buildDraft({
+    recipientKind,
+    workplaceId,
+    clientId,
+    period,
+    day,
+    month,
+    year,
+    issuedOn,
+  });
+  const workplaceChoices =
+    recipientKind === 'spa' || recipientKind === 'clinic'
+      ? workplaces.filter((workplace) => workplace.kind === recipientKind)
+      : [];
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     request<ListResponse<Invoice>>('/invoices?limit=100')
       .then((body) => {
         if (!cancelled) {
@@ -47,38 +98,110 @@ export function InvoicePage() {
     };
   }, [reloadKey]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError('');
-    const money = readAmountPence(pounds, pence);
-    if (!money.ok) {
-      setFormError(money.message);
+  useEffect(() => {
+    let cancelled = false;
+    setWorkplacesLoading(true);
+    setClientsLoading(true);
+    request<ListResponse<Workplace>>('/workplaces?limit=100')
+      .then((body) => {
+        if (!cancelled) {
+          setWorkplaces(body.items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDirectoryError(messageOf(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setWorkplacesLoading(false);
+        }
+      });
+    request<ListResponse<Client>>('/clients?limit=100')
+      .then((body) => {
+        if (!cancelled) {
+          setClients(body.items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDirectoryError(messageOf(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setClientsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const next = buildDraft({
+      recipientKind,
+      workplaceId,
+      clientId,
+      period,
+      day,
+      month,
+      year,
+      issuedOn,
+    });
+    if (next === null) {
+      setPreview(null);
+      setPreviewError('');
+      setPreviewLoading(false);
       return;
     }
-    const payload: {
-      clientName: string;
-      service: string;
-      amountPence?: number;
-      issuedOn?: string;
-    } = {
-      clientName: clientName.trim(),
-      service: service.trim(),
+    let cancelled = false;
+    setPreview(null);
+    setPreviewError('');
+    setPreviewLoading(true);
+    request<InvoicePreview>(`/invoices/preview?${previewSearch(next)}`)
+      .then((body) => {
+        if (!cancelled) {
+          setPreview(body);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setPreviewError(messageOf(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPreviewLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
     };
-    if (money.amountPence > 0) {
-      payload.amountPence = money.amountPence;
+  }, [recipientKind, workplaceId, clientId, period, day, month, year, issuedOn]);
+
+  function clearForm() {
+    setRecipientKind('');
+    setWorkplaceId('');
+    setClientId('');
+    setPeriod('');
+    setDay('');
+    setMonth('');
+    setYear('');
+    setIssuedOn('');
+  }
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (draft === null || preview === null || preview.lines.length === 0) {
+      return;
     }
-    const civil = civilDateFromInput(issuedOn);
-    if (civil !== undefined) {
-      payload.issuedOn = civil;
-    }
+    setFormError('');
     setSaving(true);
     try {
-      await request('/invoices', { method: 'POST', json: payload });
-      setClientName('');
-      setService('');
-      setPounds('');
-      setPence('');
-      setIssuedOn('');
+      await request('/invoices', { method: 'POST', json: draft });
+      clearForm();
       setReloadKey((value) => value + 1);
     } catch (error: unknown) {
       setFormError(messageOf(error));
@@ -95,9 +218,7 @@ export function InvoicePage() {
         method: 'PATCH',
         json: { status: 'paid' },
       });
-      setInvoices((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      setInvoices((current) => current.map((item) => (item.id === updated.id ? updated : item)));
     } catch (error: unknown) {
       setRowError({ id: invoice.id, message: messageOf(error) });
     } finally {
@@ -109,10 +230,7 @@ export function InvoicePage() {
     setPdfId(invoice.id);
     setRowError(null);
     try {
-      await downloadFile(
-        `/invoices/${invoice.id}/pdf`,
-        `${invoice.number}.pdf`,
-      );
+      await downloadFile(`/invoices/${invoice.id}/pdf`, `${invoice.number}.pdf`);
     } catch (error: unknown) {
       setRowError({ id: invoice.id, message: messageOf(error) });
     } finally {
@@ -120,53 +238,181 @@ export function InvoicePage() {
     }
   }
 
+  const createDisabled =
+    saving ||
+    previewLoading ||
+    previewError !== '' ||
+    preview === null ||
+    preview.lines.length === 0;
+
   return (
     <div className="stack">
       <h2>Invoices</h2>
       <form className="card stack" onSubmit={onSubmit}>
-        <label className="field">
-          Client name
-          <input
-            value={clientName}
-            maxLength={200}
-            onChange={(event) => {
-              setClientName(event.target.value);
-            }}
-          />
-        </label>
-        <label className="field">
-          Service
-          <input
-            value={service}
-            maxLength={200}
-            onChange={(event) => {
-              setService(event.target.value);
-            }}
-          />
-        </label>
-        <div className="money-fields">
+        <fieldset>
+          <legend>Recipient</legend>
+          <div className="inline-choices">
+            <RecipientChoice
+              label="Spa"
+              value="spa"
+              current={recipientKind}
+              onPick={(value) => {
+                setRecipientKind(value);
+                setWorkplaceId('');
+                setClientId('');
+              }}
+            />
+            <RecipientChoice
+              label="Clinic"
+              value="clinic"
+              current={recipientKind}
+              onPick={(value) => {
+                setRecipientKind(value);
+                setWorkplaceId('');
+                setClientId('');
+              }}
+            />
+            <RecipientChoice
+              label="Client"
+              value="client"
+              current={recipientKind}
+              onPick={(value) => {
+                setRecipientKind(value);
+                setWorkplaceId('');
+                setClientId('');
+              }}
+            />
+          </div>
+        </fieldset>
+        {recipientKind === 'spa' || recipientKind === 'clinic' ? (
+          <>
+            {workplacesLoading ? <p className="muted">Loading workplaces…</p> : null}
+            <label className="field">
+              {recipientKind === 'spa' ? 'Spa' : 'Clinic'}
+              <select
+                value={workplaceId}
+                onChange={(event) => {
+                  setWorkplaceId(event.target.value);
+                }}
+              >
+                <option value="">Choose a saved {recipientKind}</option>
+                {workplaceChoices.map((workplace) => (
+                  <option key={workplace.id} value={String(workplace.id)}>
+                    {workplace.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <SaveWorkplaceForm
+              kind={recipientKind}
+              onCreated={(workplace) => {
+                setWorkplaces((current) => insertByName(current, workplace));
+                setWorkplaceId(String(workplace.id));
+                setDirectoryError('');
+              }}
+            />
+          </>
+        ) : null}
+        {recipientKind === 'client' ? (
+          <>
+            {clientsLoading ? <p className="muted">Loading clients…</p> : null}
+            <label className="field">
+              Client
+              <select
+                value={clientId}
+                onChange={(event) => {
+                  setClientId(event.target.value);
+                }}
+              >
+                <option value="">Choose a saved client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={String(client.id)}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <SaveClientForm
+              onCreated={(client) => {
+                setClients((current) => insertByName(current, client));
+                setClientId(String(client.id));
+                setDirectoryError('');
+              }}
+            />
+          </>
+        ) : null}
+        <FormError message={directoryError} />
+        <fieldset>
+          <legend>Period</legend>
+          <div className="inline-choices">
+            <label className="choice">
+              <input
+                type="radio"
+                name="period"
+                value="day"
+                checked={period === 'day'}
+                onChange={() => {
+                  setPeriod('day');
+                }}
+              />
+              Daily
+            </label>
+            <label className="choice">
+              <input
+                type="radio"
+                name="period"
+                value="month"
+                checked={period === 'month'}
+                onChange={() => {
+                  setPeriod('month');
+                }}
+              />
+              Monthly
+            </label>
+          </div>
+        </fieldset>
+        {period === 'day' ? (
           <label className="field">
-            Pounds
+            Date
             <input
-              inputMode="numeric"
-              value={pounds}
+              type="date"
+              value={day}
               onChange={(event) => {
-                setPounds(event.target.value);
+                setDay(event.target.value);
               }}
             />
           </label>
-          <label className="field">
-            Pence
-            <input
-              inputMode="numeric"
-              maxLength={2}
-              value={pence}
-              onChange={(event) => {
-                setPence(event.target.value);
-              }}
-            />
-          </label>
-        </div>
+        ) : null}
+        {period === 'month' ? (
+          <div className="money-fields">
+            <label className="field">
+              Month
+              <select
+                value={month}
+                onChange={(event) => {
+                  setMonth(event.target.value);
+                }}
+              >
+                <option value="">Month</option>
+                {MONTHS.map((item) => (
+                  <option key={item.value} value={String(item.value)}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Year
+              <input
+                inputMode="numeric"
+                value={year}
+                onChange={(event) => {
+                  setYear(event.target.value);
+                }}
+              />
+            </label>
+          </div>
+        ) : null}
         <label className="field">
           Issue date
           <input
@@ -178,15 +424,19 @@ export function InvoicePage() {
           />
           <span className="muted">Leave blank for today.</span>
         </label>
+        <PreviewBlock
+          loading={previewLoading}
+          error={previewError}
+          preview={preview}
+          waiting={draft === null}
+        />
         <FormError message={formError} />
-        <button className="button-primary" type="submit" disabled={saving}>
+        <button className="button-primary" type="submit" disabled={createDisabled}>
           {saving ? 'Creating…' : 'Create invoice'}
         </button>
       </form>
       <FormError message={pageError} />
-      {loading && invoices.length === 0 ? (
-        <p className="muted">Loading invoices…</p>
-      ) : null}
+      {loading && invoices.length === 0 ? <p className="muted">Loading invoices…</p> : null}
       {!loading && pageError === '' && invoices.length === 0 ? (
         <p className="muted">No invoices yet.</p>
       ) : null}
@@ -194,20 +444,16 @@ export function InvoicePage() {
         {invoices.map((invoice) => (
           <article className="row" key={invoice.id}>
             <h3>{invoice.number}</h3>
-            <p>
-              {invoice.clientName} · {invoice.service}
-            </p>
-            <p className="amount">{formatPounds(invoice.amountPence)}</p>
-            <p className="muted">Issued {invoice.issuedOn}</p>
-            <p>Status: {invoice.status}</p>
-            <p>
-              {invoice.paidOn === undefined
-                ? 'No paid date yet'
-                : `Paid on ${invoice.paidOn}`}
-            </p>
-            {invoice.transactionId !== undefined ? (
-              <p>Income entry {invoice.transactionId}</p>
+            <p>{recipientText(invoice)}</p>
+            {periodText(invoice) === null ? null : <p>{periodText(invoice)}</p>}
+            {invoice.clientName !== undefined && invoice.service !== undefined ? (
+              <p>
+                {invoice.clientName} · {invoice.service}
+              </p>
             ) : null}
+            <p className="amount">{formatPounds(invoice.amountPence)}</p>
+            <p>Status: {invoice.status}</p>
+            {invoice.paidOn === undefined ? null : <p>Paid on {invoice.paidOn}</p>}
             <div className="actions">
               <button
                 className="button-ghost"
@@ -217,25 +463,212 @@ export function InvoicePage() {
                   void download(invoice);
                 }}
               >
-                {pdfId === invoice.id ? 'Downloading…' : 'Download PDF'}
+                {pdfId === invoice.id ? 'Downloading…' : 'PDF'}
               </button>
-              <button
-                className="button-primary"
-                type="button"
-                disabled={payingId === invoice.id}
-                onClick={() => {
-                  void pay(invoice);
-                }}
-              >
-                {payingId === invoice.id ? 'Marking paid…' : 'Mark paid'}
-              </button>
+              {invoice.status === 'issued' ? (
+                <button
+                  className="button-primary"
+                  type="button"
+                  disabled={payingId === invoice.id}
+                  onClick={() => {
+                    void pay(invoice);
+                  }}
+                >
+                  {payingId === invoice.id ? 'Paying…' : 'Pay'}
+                </button>
+              ) : null}
             </div>
-            {rowError?.id === invoice.id ? (
-              <FormError message={rowError.message} />
-            ) : null}
+            {rowError?.id === invoice.id ? <FormError message={rowError.message} /> : null}
           </article>
         ))}
       </div>
     </div>
   );
+}
+
+function RecipientChoice({
+  label,
+  value,
+  current,
+  onPick,
+}: {
+  label: string;
+  value: RecipientKind;
+  current: RecipientKind | '';
+  onPick: (value: RecipientKind) => void;
+}) {
+  return (
+    <label className="choice">
+      <input
+        type="radio"
+        name="recipientKind"
+        value={value}
+        checked={current === value}
+        onChange={() => {
+          onPick(value);
+        }}
+      />
+      {label}
+    </label>
+  );
+}
+
+function PreviewBlock({
+  loading,
+  error,
+  preview,
+  waiting,
+}: {
+  loading: boolean;
+  error: string;
+  preview: InvoicePreview | null;
+  waiting: boolean;
+}) {
+  if (waiting) {
+    return <p className="muted">Choose a recipient and a period to preview the bill.</p>;
+  }
+  if (loading) {
+    return <p className="muted">Loading preview…</p>;
+  }
+  if (error !== '') {
+    return <FormError message={error} />;
+  }
+  if (preview === null) {
+    return null;
+  }
+  return (
+    <div className="stack">
+      <h3>Preview · {preview.recipientName}</h3>
+      <p className="muted">
+        {preview.periodStart} to {preview.periodEnd}
+      </p>
+      {preview.lines.length === 0 ? <p className="muted">No lines.</p> : <LineList lines={preview.lines} />}
+      <p className="amount">Total {formatPounds(preview.amountPence)}</p>
+    </div>
+  );
+}
+
+function LineList({ lines }: { lines: readonly InvoiceLine[] }) {
+  return (
+    <div className="stack">
+      {lines.map((line, index) => (
+        <div className="parts" key={`${line.occurredOn}-${line.description}-${index}`}>
+          <p>
+            {line.occurredOn} · {line.description}
+          </p>
+          <p className="muted">
+            {line.quantity} {line.quantityUnit} · {formatPounds(line.ratePence)} ·{' '}
+            {formatPounds(line.amountPence)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function recipientText(invoice: Invoice): string {
+  const name = invoice.recipientName ?? invoice.clientName ?? 'Recipient';
+  if (invoice.recipientKind === 'spa') {
+    return `${name} · Spa`;
+  }
+  if (invoice.recipientKind === 'clinic') {
+    return `${name} · Clinic`;
+  }
+  if (invoice.recipientKind === 'client') {
+    return `${name} · Client`;
+  }
+  return name;
+}
+
+function periodText(invoice: Invoice): string | null {
+  if (invoice.periodStart === undefined || invoice.periodEnd === undefined) {
+    return null;
+  }
+  if (invoice.period === 'day' || invoice.periodStart === invoice.periodEnd) {
+    return invoice.periodStart;
+  }
+  return `${invoice.periodStart} to ${invoice.periodEnd}`;
+}
+
+function buildDraft(input: {
+  recipientKind: RecipientKind | '';
+  workplaceId: string;
+  clientId: string;
+  period: InvoicePeriod | '';
+  day: string;
+  month: string;
+  year: string;
+  issuedOn: string;
+}): InvoiceDraft | null {
+  if (input.recipientKind === '' || input.period === '') {
+    return null;
+  }
+  const draft: InvoiceDraft = {
+    recipientKind: input.recipientKind,
+    period: input.period,
+  };
+  if (input.recipientKind === 'client') {
+    const id = wholeId(input.clientId);
+    if (id === undefined) {
+      return null;
+    }
+    draft.clientId = id;
+  } else {
+    const id = wholeId(input.workplaceId);
+    if (id === undefined) {
+      return null;
+    }
+    draft.workplaceId = id;
+  }
+  if (input.period === 'day') {
+    const date = civilDateFromInput(input.day);
+    if (date === undefined) {
+      return null;
+    }
+    draft.date = date;
+  } else {
+    if (!/^\d+$/.test(input.month) || !/^\d+$/.test(input.year)) {
+      return null;
+    }
+    draft.month = Number(input.month);
+    draft.year = Number(input.year);
+  }
+  const issued = civilDateFromInput(input.issuedOn);
+  if (issued !== undefined) {
+    draft.issuedOn = issued;
+  }
+  return draft;
+}
+
+function wholeId(value: string): number | undefined {
+  if (!/^\d+$/.test(value)) {
+    return undefined;
+  }
+  const id = Number(value);
+  return id > 0 ? id : undefined;
+}
+
+function previewSearch(draft: InvoiceDraft): string {
+  const params = new URLSearchParams();
+  params.set('recipientKind', draft.recipientKind);
+  params.set('period', draft.period);
+  if (draft.workplaceId !== undefined) {
+    params.set('workplaceId', String(draft.workplaceId));
+  }
+  if (draft.clientId !== undefined) {
+    params.set('clientId', String(draft.clientId));
+  }
+  if (draft.date !== undefined) {
+    params.set('date', draft.date);
+  }
+  if (draft.month !== undefined) {
+    params.set('month', String(draft.month));
+  }
+  if (draft.year !== undefined) {
+    params.set('year', String(draft.year));
+  }
+  if (draft.issuedOn !== undefined) {
+    params.set('issuedOn', draft.issuedOn);
+  }
+  return params.toString();
 }

@@ -2,7 +2,7 @@
 
 Index: [Page plans](20_plan_pages.md). This is items 2 and 3 in [`01_user_flow.md`](01_user_flow.md). The baseline build check is [step 12](14_step12_react_pages.md). Massage fields are [step 14](16_step14_massage_income.md). The bonus is [step 15](17_step15_bonus.md). The daily summary is [step 16](18_step16_daily_income_summary.md). Workplaces are [step 13](15_step13_workplaces.md). A saved client on income is [step 17](19_step17_invoices_from_records.md).
 
-`client/src/pages/FeedPage.tsx` is `/` after onboarding. There is no separate income route. Number 24 in the page index is unused for that reason.
+`client/src/pages/FeedPage.tsx` is `/` after onboarding. There is no separate income route. Saved spa, clinic, and client names are [Workplace name](24_page_directory.md).
 
 The file on disk today logs cash income or an expense and can attach a photo. The massage form, the workplace, the bonus, and the daily summary below are the target. Do not add them during step 12.
 
@@ -14,7 +14,7 @@ Income on this page may be cash (`amountPence` only) or a massage. A massage nam
 
 ## User flows and navigation
 
-After onboarding, `/` is this page. The menu also opens [invoices](25_page_invoice.md) and the [tax summary](27_page_tax_summary.md). Log out returns to [login](21_page_login.md).
+After onboarding, `/` is this page. The menu also opens [Workplace name](24_page_directory.md), [invoices](25_page_invoice.md), and the [tax summary](27_page_tax_summary.md). Log out returns to [login](21_page_login.md).
 
 On entry, load `GET /expense-categories` once and keep the result. Load `GET /transactions`. When the massage form is present, also load `GET /workplaces` and `GET /clients`. The summary loads with `GET /income/summary` for the selected civil date. Do not call `GET /tax/summary` from this page.
 
@@ -78,9 +78,9 @@ Massage Type options, in this order. The label is what the user sees. The value 
 
 Use these labels on the row, in the summary, and on an invoice line. Do not invent a second spelling.
 
-The workplace dropdown lists saved spas and clinics from `GET /workplaces`. Choosing one sends that id. Saving a new spa or clinic is a separate `POST /workplaces` with `{ name, kind }`, once, and then the new id is selected. Do not create a workplace for every income row. The same user, the same kind, and the same name ignoring case is `409` `Workplace already saved`. Show that message. A spa and a clinic may share a display name.
+The workplace dropdown lists saved spas and clinics from `GET /workplaces`. Choosing one sends that id. This page does not create a workplace. A new spa or clinic is saved on [Workplace name](24_page_directory.md). Do not create a workplace for every income row. A spa and a clinic may share a display name.
 
-The client dropdown lists `GET /clients`. A new client is `POST /clients` with `{ name }` once. The same name ignoring case is `409` `Client already saved`.
+The client dropdown lists `GET /clients`. This page does not create a client. A new client is saved on that same page.
 
 Expense fields stay as they are in step 12. A category dropdown uses the categories the vehicle method allows, in the API's order. Flat-rate mileage asks for miles and does not ask for money. Other expenses ask for money. The hint updates as the note changes and does not call the server. `petrol` under flat rate suggests mileage. The same word under actual cost suggests vehicle costs. `train to clinic` or `uber` suggests Public transport. Parking and tolls stay a user choice of `other`.
 
@@ -159,7 +159,7 @@ A transaction that has `invoiceId` is immutable. `PATCH` or `DELETE` is `409` `I
 - A save error shows `FormError` and keeps the typed values. The button is enabled again.
 - A list or summary error shows the message and leaves the form usable.
 - A rejected file shows the `400` message on that row. The row remains saved.
-- `409` for a duplicate workplace or client shows the server message and does not create a second record.
+- A failed workplace or client list shows the message beside the workplace or client choice. The rest of the form stays usable. This page does not save those names.
 
 ## Security and data-access considerations
 
@@ -189,4 +189,4 @@ Lists and creates are limited to the token user. Another user's workplace, clien
 
 ## Dependencies on other pages or shared components
 
-Depends on [`26_page_onboarding.md`](26_page_onboarding.md) for `expenseMethod` and the gate, on `api.ts`, `format.ts`, `FormError.tsx`, `hint.ts`, and `category-filter.ts`. The summary figures must match [`25_page_invoice.md`](25_page_invoice.md) and [`27_page_tax_summary.md`](27_page_tax_summary.md) for the same rows. Those pages do not own a second total.
+Depends on [`26_page_onboarding.md`](26_page_onboarding.md) for `expenseMethod` and the gate, on [`24_page_directory.md`](24_page_directory.md) for saved workplace and client names, and on `api.ts`, `format.ts`, `FormError.tsx`, `hint.ts`, and `category-filter.ts`. The summary figures must match [`25_page_invoice.md`](25_page_invoice.md) and [`27_page_tax_summary.md`](27_page_tax_summary.md) for the same rows. Those pages do not own a second total.

@@ -1,4 +1,20 @@
-import type { ExpenseMethod, PracticeType } from './types.ts';
+import type { ExpenseMethod, MassageType, PracticeType } from './types.ts';
+
+export const MASSAGE_OPTIONS: readonly { value: MassageType; label: string }[] = [
+  { value: 'deep_tissue', label: 'Deep Tissue' },
+  { value: 'thai_oil', label: 'Thai Oil Massage' },
+  { value: 'thai_yoga', label: 'Thai Yoga' },
+  { value: 'aroma', label: 'Aroma' },
+  { value: 'pregnancy', label: 'Pregnancy' },
+  { value: 'lymphatic', label: 'Lymphatic' },
+  { value: 'foot', label: 'Foot Massage' },
+  { value: 'swedish', label: 'Swedish' },
+  { value: 'back_neck', label: 'Back & Neck' },
+  { value: 'sport', label: 'Sport Massage' },
+  { value: 'hot_stone', label: 'Hot Stone' },
+  { value: 'body_scrub', label: 'Body Scrub' },
+  { value: 'other', label: 'Other' },
+];
 
 export function formatPounds(amountPence: number): string {
   const negative = amountPence < 0;
@@ -22,6 +38,32 @@ export function readAmountPence(
     };
   }
   return { ok: true, amountPence: pounds * 100 + pence };
+}
+
+export function readOptionalAmount(
+  poundsText: string,
+  penceText: string,
+): { ok: true; amountPence: number | undefined } | { ok: false; message: string } {
+  if (poundsText.trim() === '' && penceText.trim() === '') {
+    return { ok: true, amountPence: undefined };
+  }
+  const money = readAmountPence(poundsText, penceText);
+  if (!money.ok || money.amountPence === 0) {
+    return money.ok ? { ok: true, amountPence: undefined } : money;
+  }
+  return money;
+}
+
+export function isMassageType(value: string): value is MassageType {
+  return MASSAGE_OPTIONS.some((option) => option.value === value);
+}
+
+export function massageTypeLabel(massageType: string, customMassageType?: string): string {
+  if (massageType === 'other' && customMassageType !== undefined && customMassageType !== '') {
+    return customMassageType;
+  }
+  const found = MASSAGE_OPTIONS.find((option) => option.value === massageType);
+  return found === undefined ? massageType : found.label;
 }
 
 export function readWholeNumber(

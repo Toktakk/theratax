@@ -28,7 +28,7 @@ A baseline invoice with no lines still downloads the one-line PDF: name, number,
 
 The heading is Invoices. The form comes before the list.
 
-Recipient is three choices: Spa, Clinic, Client. Spa and Clinic then show workplaces of that kind from `GET /workplaces`. Client shows saved clients from `GET /clients`. The page reuses those rows. It does not invent a recipient name that is not the saved record. A new workplace or client is saved once, through the same create used on the feed, and then selected. A duplicate name shows `Workplace already saved` or `Client already saved`.
+Recipient is three choices: Spa, Clinic, Client. Spa and Clinic then show workplaces of that kind from `GET /workplaces`. Client shows saved clients from `GET /clients`. The page reuses those rows. It does not invent a recipient name that is not the saved record. A new workplace or client is saved once on [Workplace name](24_page_directory.md), or through the create form on this page, and then selected. A duplicate name shows `Workplace already saved` or `Client already saved`.
 
 Period is Daily or Monthly.
 
@@ -136,4 +136,4 @@ The page requires a bearer token and completed onboarding. Preview, create, pay,
 
 ## Dependencies on other pages or shared components
 
-Depends on income, workplaces, and clients from [`23_page_feed.md`](23_page_feed.md), on the menu in `App.tsx`, and on `api.ts`, `format.ts`, and `FormError.tsx`. Totals must match the feed summary and the tax summary's `incomePence` for the same source rows, without copying those totals into a new income row. The tax page does not read this list.
+Depends on income from [`23_page_feed.md`](23_page_feed.md), on workplaces and clients from [`24_page_directory.md`](24_page_directory.md), on the menu in `App.tsx`, and on `api.ts`, `format.ts`, `FormError.tsx`, and `directory-forms.tsx`. Totals must match the feed summary and the tax summary's `incomePence` for the same source rows, without copying those totals into a new income row. The tax page does not read this list.

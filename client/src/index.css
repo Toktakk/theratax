@@ -220,7 +220,7 @@ legend {
 
 .inline-choices {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   gap: 0.5rem;
 }
 
@@ -306,4 +306,18 @@ ol {
 .disclaimer {
   border-left: 3px solid var(--accent);
   padding-left: 0.8rem;
+}
+
+.subcard {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.75rem;
+  background: #faf7f1;
+}
+
+.parts {
+  display: grid;
+  gap: 0.2rem;
 }
