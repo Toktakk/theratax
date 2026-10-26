@@ -65,7 +65,7 @@ Add a service to `docker-compose.yml`. This password is for the development mach
 
 ```yaml
   minio:
-    image: minio/minio:latest
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: theratax
