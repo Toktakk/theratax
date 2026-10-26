@@ -31,6 +31,12 @@ export interface ExpenseCategoryResponse {
       keywords: ['laundry', 'towel', 'linen', 'washing'],
     },
     {
+      slug: 'public-transport',
+      name: 'Public transport',
+      kind: 'general',
+      keywords: ['tube', 'underground', 'uber', 'taxi', 'train', 'bus'],
+    },
+    {
       slug: 'mileage',
       name: 'Mileage',
       kind: 'mileage',

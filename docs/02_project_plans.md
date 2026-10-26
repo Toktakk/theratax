@@ -31,7 +31,7 @@ This is the only order that works. [Step 6](08_step06_register_login_onboarding.
 4. [Enable ValidationPipe](06_step04_enable_validation_pipe.md). Prove unknown fields are rejected, then delete the temporary probe.
 5. [Tax calculator](07_step05_tax_calculator.md). Lock tax and mileage figures in unit tests. No HTTP route yet.
 6. [Register, login, onboarding](08_step06_register_login_onboarding.md). Add the first product endpoints and a bearer token.
-7. [Expense categories](09_step07_expense_categories.md). Seed seven categories and return them in a fixed order.
+7. [Expense categories](09_step07_expense_categories.md). Seed eight categories and return them in a fixed order.
 8. [Log income and expenses](10_step08_log_income_and_expenses.md). Record one transaction per request, including mileage amounts.
 9. [Tax summary](11_step09_tax_summary.md). Load the year's totals and call the tax function.
 10. [Receipt images](12_step10_receipt_images.md). Attach one image to a transaction and hand out a 15-minute link.
@@ -122,7 +122,7 @@ src/app.module.ts
 src/prisma/
 src/tax-engine/          tax, mileage, and date functions, and GET /tax/summary
 src/auth/                register, login, current user, onboarding
-src/expense-categories/  seven categories
+src/expense-categories/  eight categories
 src/transactions/        income and expense feed
 src/upload/              receipt images and 15-minute links
 src/invoices/            invoices and PDF

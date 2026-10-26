@@ -12,7 +12,7 @@ Do not write `POST /transactions`. Do not build a hint endpoint. Hinting is the 
 
 ## Concept
 
-Categories are seeded as a fixed list. The user cannot create their own, because the point of the product is that they do not set up a chart of accounts. `GET /expense-categories` returns a bare array. It is not wrapped in `{ items }`, and it is not paginated. There are always 7 rows, in this order.
+Categories are seeded as a fixed list. The user cannot create their own, because the point of the product is that they do not set up a chart of accounts. `GET /expense-categories` returns a bare array. It is not wrapped in `{ items }`, and it is not paginated. There are always 8 rows, in this order.
 
 | slug | name | kind | keywords |
 | --- | --- | --- | --- |
@@ -20,21 +20,22 @@ Categories are seeded as a fixed list. The user cannot create their own, because
 | `hcpc-fees` | HCPC registration | `general` | hcpc, registration, membership |
 | `professional-insurance` | Professional insurance | `general` | indemnity, insurance |
 | `laundry` | Laundry | `general` | laundry, towel, linen, washing |
+| `public-transport` | Public transport | `general` | tube, underground, uber, taxi, train, bus |
 | `mileage` | Mileage | `mileage` | mileage, miles, petrol, fuel, travel |
 | `vehicle-costs` | Vehicle costs | `vehicle_actual` | fuel, petrol, mot, service, repair, servicing |
 | `other` | Other | `general` | no keywords |
 
-The five profession categories from the proposal are oils and consumables, HCPC fees, mileage, insurance, and laundry. `vehicle-costs` exists so someone who chose actual cost has a place for fuel and repairs. `other` exists so a 30-second log can finish when no named category matches.
+The five profession categories from the proposal are oils and consumables, HCPC fees, mileage, insurance, and laundry. `public-transport` is a general category for Tube, Underground, train, bus, taxi, and Uber fares. The user types the fare in pence, under either vehicle method. `vehicle-costs` exists so someone who chose actual cost has a place for fuel and repairs. `other` exists so a 30-second log can finish when no named category matches.
 
 Alphabetical slug order is not this order, so the database cannot sort it for you. A constant array in the code is the order that goes out. The service reads every row, then puts them back into that order. If any slug is missing, the seed is incomplete. Respond with `InternalServerErrorException`, because that is an internal failure, not the client's fault.
 
 Seed in this service's `onModuleInit`, through the `PrismaService` that is already injected. Use `upsert` so a restart can run again without creating duplicate rows. Do not construct another `PrismaClient` in a seed script.
 
-`mileage` is allowed only when `expenseMethod` is `flat_rate`. `vehicle-costs` is allowed only when it is `actual_cost`. The five `general` categories are always allowed. This rule is not enforced in this step, because nothing writes a transaction yet. [Step 8](10_step08_log_income_and_expenses.md) enforces it. This step only returns the full list, so the client knows what exists.
+`mileage` is allowed only when `expenseMethod` is `flat_rate`. `vehicle-costs` is allowed only when it is `actual_cost`. The `general` categories, including `public-transport`, are always allowed. This rule is not enforced in this step, because nothing writes a transaction yet. [Step 8](10_step08_log_income_and_expenses.md) enforces it. This step only returns the full list, so the client knows what exists.
 
 The words `fuel` and `petrol` sit in both the mileage category and the vehicle-cost category. At one moment the user has only one of those categories left, so the hint can land on only one. Under flat rate, a note "petrol" should be `mileage`, because the 55-then-25 pence rate already covers fuel and the user types miles. Under actual cost, the same note should be `vehicle-costs`, and the user types the deductible amount.
 
-Parking, tolls, and train fares can be claimed on top of mileage, on the same GOV.UK page. They are not mileage. Log them as `other` with `amountPence`. Those words are left out of `mileage` keywords on purpose, and `other` has no keywords, so it is never hinted.
+Parking and tolls can be claimed on top of mileage, on the same GOV.UK page. They are not mileage, and they are not public transport. Log them as `other` with `amountPence`. Tube, Underground, train, bus, taxi, and Uber fares are `public-transport` with `amountPence`. Those words are left out of `mileage` keywords on purpose. `public-transport` sits before `mileage`, so a note that contains both `tube` and `travel` lands on public transport. The word `travel` stays on `mileage` only. `other` has no keywords, so parking and tolls are never hinted.
 
 This path requires Bearer. It can be called before onboarding. Calling transactions or the tax summary before onboarding is not allowed. That is a different gate, and it is not built in this step.
 
@@ -80,6 +81,12 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
     name: 'Laundry',
     kind: 'general',
     keywords: ['laundry', 'towel', 'linen', 'washing'],
+  },
+  {
+    slug: 'public-transport',
+    name: 'Public transport',
+    kind: 'general',
+    keywords: ['tube', 'underground', 'uber', 'taxi', 'train', 'bus'],
   },
   {
     slug: 'mileage',
@@ -153,15 +160,15 @@ docker compose exec postgres psql -U theratax -d theratax_dev -c 'SELECT slug FR
 
 ## What you must see
 
-Bea's request gets `200` and is an array of length 7. There is no `items` key. The slug order is `oils-consumables`, `hcpc-fees`, `professional-insurance`, `laundry`, `mileage`, `vehicle-costs`, `other`.
+Bea's request gets `200` and is an array of length 8. There is no `items` key. The slug order is `oils-consumables`, `hcpc-fees`, `professional-insurance`, `laundry`, `public-transport`, `mileage`, `vehicle-costs`, `other`.
 
-`mileage` keywords include `petrol` and `fuel`. `vehicle-costs` has those two words as well. `other` has `keywords` of `[]`.
+`public-transport` keywords are `tube`, `underground`, `uber`, `taxi`, `train`, and `bus`. `mileage` keywords include `petrol` and `fuel`. `vehicle-costs` has those two words as well. `other` has `keywords` of `[]`.
 
 Bea's `onboardedAt` is still `null`, which you can see from `GET /users/me`. Her category request still succeeds.
 
 A request with no Bearer gets `401` and the message `Unauthorized`.
 
-`SELECT` shows 7 slugs. Restart the app once more and the count is still 7.
+`SELECT` shows 8 slugs. Restart the app once more and the count is still 8.
 
 ## If it fails
 

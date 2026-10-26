@@ -130,11 +130,12 @@ interface ExpenseCategory {
 | `hcpc-fees` | HCPC registration | `general` | hcpc, registration, membership |
 | `professional-insurance` | Professional insurance | `general` | indemnity, insurance |
 | `laundry` | Laundry | `general` | laundry, towel, linen, washing |
+| `public-transport` | Public transport | `general` | tube, underground, uber, taxi, train, bus |
 | `mileage` | Mileage | `mileage` | mileage, miles, petrol, fuel, travel |
 | `vehicle-costs` | Vehicle costs | `vehicle_actual` | fuel, petrol, mot, service, repair, servicing |
 | `other` | Other | `general` | — |
 
-`mileage` is valid only when `expenseMethod` is `flat_rate`. `vehicle-costs` is valid only when it is `actual_cost`. The five general categories are always valid. Those five, plus mileage, are the profession list from the proposal (oils/consumables, HCPC fees, mileage, insurance, laundry). `vehicle-costs` exists so actual-cost users still have a place for fuel and servicing. `other` exists so a 30-second log can finish when none of the named categories fit.
+`mileage` is valid only when `expenseMethod` is `flat_rate`. `vehicle-costs` is valid only when it is `actual_cost`. Every `general` category is always valid. The profession list from the proposal is oils/consumables, HCPC fees, mileage, insurance, and laundry. `public-transport` is a general category for Tube, Underground, train, bus, taxi, and Uber fares, so the user types `amountPence` under either vehicle method. `vehicle-costs` exists so actual-cost users still have a place for fuel and servicing. `other` exists so a 30-second log can finish when none of the named categories fit.
 
 ### Hint (client-side)
 
@@ -146,7 +147,7 @@ There is no hint endpoint. Flow steps 2–3 cannot wait on a round trip. The cli
 
 `fuel` and `petrol` sit on both vehicle categories. Only one of those categories is allowed at a time, so the hint cannot suggest both. Under flat rate, a note of "petrol" suggests `mileage`: the 55p/25p rate already covers fuel, and the user enters miles. Under actual cost, the same note suggests `vehicle-costs`, and the user enters the deductible amount.
 
-Parking, tolls, and train fares are claimable on top of mileage ([same GOV.UK vehicles page](https://www.gov.uk/simpler-income-tax-simplified-expenses/vehicles)). They are not miles. Log them as `other` with an `amountPence`. They are deliberately absent from the `mileage` keywords.
+Parking and tolls are claimable on top of mileage ([same GOV.UK vehicles page](https://www.gov.uk/simpler-income-tax-simplified-expenses/vehicles)). They are not miles, and they are not public transport. Log them as `other` with an `amountPence`. Tube, Underground, train, bus, taxi, and Uber fares are `public-transport` with an `amountPence`. Those words are absent from the `mileage` keywords. `public-transport` is listed before `mileage`, so a note that contains both `tube` and `travel` suggests public transport. The word `travel` stays on `mileage` only.
 
 ## Transaction (proposal: Transaction; flow step 2)
 
@@ -376,7 +377,7 @@ Transactions are ordered by `occurredOn` descending, then `id` descending, so th
 
 `GET /transactions` accepts optional `type=income` or `type=expense`. Any other value is `400`.
 
-`GET /expense-categories` is the bare array above. It is not wrapped and not paginated. There are seven rows.
+`GET /expense-categories` is the bare array above. It is not wrapped and not paginated. There are eight rows.
 
 ## Errors
 

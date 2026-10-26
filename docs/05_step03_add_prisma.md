@@ -277,7 +277,7 @@ GET {{baseUrl}}/
 
 Postman gets `Hello World!`. The Nest log has no error about failing to connect to the database.
 
-`\dt` shows the tables `User`, `Session`, `ExpenseCategory`, `Transaction`, `Receipt`, `Invoice`. The category table may still be empty. [Step 7](09_step07_expense_categories.md) inserts the 7 rows.
+`\dt` shows the tables `User`, `Session`, `ExpenseCategory`, `Transaction`, `Receipt`, `Invoice`. The category table may still be empty. [Step 7](09_step07_expense_categories.md) inserts the 8 rows.
 
 There is no new path yet. Sending `POST {{baseUrl}}/auth/register` with an empty body must not yet be product behaviour. If an old draft already has this route, treat it as belonging to [step 6](08_step06_register_login_onboarding.md) and do not use it as the pass check for step 3.
 

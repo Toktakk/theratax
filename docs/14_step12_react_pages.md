@@ -97,7 +97,7 @@ There is no hint endpoint. Follow this in the browser every time the note change
 2. Lowercase the note. The first category whose keyword is a substring of the note is the suggestion.
 3. An empty note, or no matching word, leaves the choice to the user. `other` has no keywords, so it is never suggested.
 
-The word `petrol` under flat rate must suggest `mileage`, and the form asks for miles, not an amount, because the server calculates it. Under actual cost the same word must suggest `vehicle-costs`, and the form asks for money. The note `train to clinic` suggests no category. Parking and tolls are chosen by the user as `other`, then they type the money.
+The word `petrol` under flat rate must suggest `mileage`, and the form asks for miles, not an amount, because the server calculates it. Under actual cost the same word must suggest `vehicle-costs`, and the form asks for money. The note `train to clinic` or `uber` suggests Public transport, and the form asks for money under either vehicle method. Parking and tolls are chosen by the user as `other`, then they type the money.
 
 Saving is a single `POST /transactions`. The day can be left blank. The server fills in today's London date. The list calls `GET /transactions` with the newest row on top. Show money as pounds from `amountPence`. A mileage row shows the miles next to the money the server calculated. A row whose `hasReceipt` is `false` has no photo button on this page.
 
