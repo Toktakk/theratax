@@ -7,6 +7,7 @@ import { ExpenseCategoriesModule } from './expense-categories/expense-categories
 import { TaxEngineModule } from './tax-engine/tax-engine.module.js';
 import { TransactionsModule } from './transactions/transactions.module.js';
 import { UploadModule } from './upload/upload.module.js';
+import { InvoicesModule } from './invoices/invoices.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UploadModule } from './upload/upload.module.js';
     TransactionsModule,
     TaxEngineModule,
     UploadModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
