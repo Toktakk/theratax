@@ -8,7 +8,7 @@
 
 ทำจบขั้นที่เปิดอยู่ จนคำสั่งตรวจให้ผลตรงกับที่เขียน แล้วค่อยเปิดขั้นถัดไป
 
-คำว่าตรวจได้หมายถึงมีคำสั่งที่รันแล้วเห็นผลนั้นด้วยตา ไม่ใช่แค่ไฟล์ถูกสร้าง ถ้ายังไม่มีคำสั่งตรวจ ขั้นนั้นยังไม่จบ และยังไม่เปิดไฟล์ของขั้นถัดไป
+คำว่าตรวจได้หมายถึงมีคำสั่งหรือคำขอใน Postman ที่ส่งแล้วเห็นผลนั้นด้วยตา ไม่ใช่แค่ไฟล์ถูกสร้าง ถ้ายังไม่มีคำสั่งหรือคำขอตรวจ ขั้นนั้นยังไม่จบ และยังไม่เปิดไฟล์ของขั้นถัดไป
 
 แต่ละขั้นมีโค้ดเฉพาะไฟล์ของขั้นนั้น ท้ายทุกขั้นมีประโยค **ผ่านแล้วค่อยไปขั้นถัดไป** ถ้าผลไม่ตรง ให้หยุดที่หัวข้อ "ถ้าไม่ผ่าน" ของขั้นนั้น
 
@@ -35,7 +35,7 @@ flowchart TD
 
 working tree มีร่างที่ข้ามลำดับมาแล้ว: Prisma, `ValidationPipe`, ฟังก์ชันภาษี, และ auth ไฟล์เหล่านั้นเป็นร่างให้ไปเทียบกับเกณฑ์ของแต่ละขั้น มันไม่ใช่จุดเริ่มของบทเรียน
 
-ระหว่างทำขั้น 1 ถ้า `npm test` ล้มเพราะเทสของไฟล์ที่อยู่ขั้นถัดไป ให้ยังไม่ไปแก้ไฟล์นั้น เกณฑ์ของขั้น 1 คือเบราว์เซอร์กับ `curl` เท่านั้น
+ระหว่างทำขั้น 1 ถ้า `npm test` ล้มเพราะเทสของไฟล์ที่อยู่ขั้นถัดไป ให้ยังไม่ไปแก้ไฟล์นั้น เกณฑ์ของขั้น 1 คือเบราว์เซอร์กับ Postman เท่านั้น
 
 ## สัญญาที่บทเรียนทั้งฉบับยึด
 
@@ -74,6 +74,26 @@ error ที่ผู้ใช้เห็นต้องเป็น `HttpExcep
 - Phase 2 ท้าย [`api-spec.md`](api-spec.md) อยู่นอกบทเรียน: ใบแจ้งหนี้หลายบรรทัด, VAT, ภาษีสกอตแลนด์, ไมล์มอเตอร์ไซค์, เปลี่ยน `expenseMethod` หลัง onboarding, หมวดที่ผู้ใช้สร้างเอง, และปีภาษีอื่นที่ไม่ใช่ 2026–27
 
 เส้นทางไม่มี prefix `/api` ทุก path ตรงกับตารางในสัญญา พอร์ตของ API คือ `3000`
+
+## ตรวจ HTTP ด้วย Postman
+
+ทุกคำขอ HTTP ในบทเรียนนี้ส่งจาก Postman คำสั่งในเทอร์มินัลที่ยังรันเองคือ `npm`, `docker compose`, `prisma` และ `psql`
+
+สร้าง Environment ชื่อ `local` ใส่ตัวแปร `baseUrl` เป็น `http://localhost:3000` แล้วเลือก environment นี้ก่อนกด Send ทุกครั้ง URL ในบทเรียนเขียนเป็น `{{baseUrl}}/...`
+
+คำขอที่เป็น JSON เปิด Body เลือก raw แล้วเลือก JSON ไม่ต้องพิมพ์หัว `Content-Type` เอง
+
+คำขอที่ต้องรู้ว่าเป็นใคร เปิดแท็บ Authorization เลือก Type เป็น Bearer Token แล้วใส่ชื่อตัวแปรของผู้ใช้นั้น เช่น `{{token}}` Postman จะส่งหัว `Authorization: Bearer <ค่า>` ให้ มีช่องว่างหนึ่งช่องหลังคำว่า Bearer
+
+หลังสมัครหรือล็อกอิน เก็บ `accessToken` ลง environment ที่แท็บ Tests ของคำขอนั้น
+
+```js
+pm.environment.set('token', pm.response.json().accessToken);
+```
+
+ขั้นที่ผู้ใช้ไม่ใช่คนแรกจะบอกให้เปลี่ยนชื่อตัวแปรเป็น `bee` หรือ `cai` คัดลอก `accessToken` จาก Body ไปวางในตัวแปรของ environment ได้เหมือนกัน
+
+ดูสถานะที่ตัวตอบ และดู Body ว่าตรงเกณฑ์ของขั้นนั้น หัวของตัวตอบอยู่ในแท็บ Headers
 
 ---
 
@@ -173,10 +193,10 @@ npm install
 npm run start:dev
 ```
 
-เปิดเบราว์เซอร์ที่ `http://localhost:3000` อีกเทอร์มินัลหนึ่งรัน
+เปิดเบราว์เซอร์ที่ `http://localhost:3000` แล้วส่งคำขอเดียวกันจาก Postman
 
-```bash
-curl -i http://localhost:3000
+```text
+GET {{baseUrl}}/
 ```
 
 มีเทสหน่วยของ controller นี้อยู่แล้วที่ `src/app.controller.spec.ts` มันตรวจสตริงโดยไม่เปิดพอร์ต มันไม่แทนการเปิดเบราว์เซอร์
@@ -185,7 +205,7 @@ curl -i http://localhost:3000
 
 เบราว์เซอร์แสดงตัวหนังสือ `Hello World!`
 
-`curl` ได้สถานะ `200` และตัวตอบมี `Hello World!` ล็อกของ `start:dev` มีบรรทัดว่า Nest ฟังพอร์ต 3000
+Postman ได้สถานะ `200` และตัวตอบมี `Hello World!` ล็อกของ `start:dev` มีบรรทัดว่า Nest ฟังพอร์ต 3000
 
 ### ถ้าไม่ผ่าน
 
@@ -250,10 +270,10 @@ docker compose exec postgres pg_isready -U theratax -d theratax_dev
 docker compose exec postgres psql -U theratax -d theratax_dev -c 'SELECT 1'
 ```
 
-จากนั้นยืนยันว่าแอปขั้น 1 ยังตอบอยู่
+จากนั้นยืนยันว่าแอปขั้น 1 ยังตอบอยู่ ส่งจาก Postman
 
-```bash
-curl -s http://localhost:3000
+```text
+GET {{baseUrl}}/
 ```
 
 ### ผลที่ต้องเห็น
@@ -262,7 +282,7 @@ curl -s http://localhost:3000
 
 `SELECT 1` คืนหนึ่งแถวที่มีค่า `1`
 
-`curl` ยังได้ `Hello World!`
+Postman ยังได้ `Hello World!`
 
 ใน `psql` ยังไม่ต้องมีตาราง `User` หรือตารางอื่น การไม่มีตารางในขั้นนี้เป็นผลที่ถูก
 
@@ -537,8 +557,13 @@ npx prisma migrate dev --name init
 
 ```bash
 npx prisma migrate status
-curl -s http://localhost:3000
 docker compose exec postgres psql -U theratax -d theratax_dev -c '\dt'
+```
+
+จาก Postman
+
+```text
+GET {{baseUrl}}/
 ```
 
 ### ผลที่ต้องเห็น
@@ -547,11 +572,11 @@ docker compose exec postgres psql -U theratax -d theratax_dev -c '\dt'
 
 `migrate status` บอกว่า schema ตรงกับฐาน ไม่มี migration ค้าง
 
-`curl` ได้ `Hello World!` ล็อกของ Nest ไม่มี error เรื่องต่อฐานไม่ได้
+Postman ได้ `Hello World!` ล็อกของ Nest ไม่มี error เรื่องต่อฐานไม่ได้
 
 `\dt` เห็นตาราง `User`, `Session`, `ExpenseCategory`, `Transaction`, `Receipt`, `Invoice` ตารางหมวดยังว่างได้ ขั้น 7 ค่อยใส่ 7 แถว
 
-ยังไม่มี path ใหม่ ลอง `curl -i http://localhost:3000/auth/register` ต้องยังไม่ใช่พฤติกรรมของผลิตภัณฑ์ ถ้าร่างเก่ามี route นี้อยู่แล้ว ให้ถือว่าเป็นของขั้น 6 และยังไม่ใช้มันเป็นเกณฑ์ผ่านของขั้น 3
+ยังไม่มี path ใหม่ ส่ง `POST {{baseUrl}}/auth/register` ด้วย body ว่าง ต้องยังไม่ใช่พฤติกรรมของผลิตภัณฑ์ ถ้าร่างเก่ามี route นี้อยู่แล้ว ให้ถือว่าเป็นของขั้น 6 และยังไม่ใช้มันเป็นเกณฑ์ผ่านของขั้น 3
 
 ### ถ้าไม่ผ่าน
 
@@ -662,39 +687,33 @@ export class ProbeController {
 
 ### คำสั่งที่รันเอง
 
+ส่งสามคำขอจาก Postman ไปที่เส้นเดียวกัน
+
+```text
+POST {{baseUrl}}/dev/validate
+```
+
 ฟิลด์แปลก
 
-```bash
-curl -i -X POST http://localhost:3000/dev/validate \
-  -H 'content-type: application/json' \
-  -d '{"label":"ok","extra":1}'
+```json
+{"label":"ok","extra":1}
 ```
 
 ไม่มีฟิลด์บังคับ
 
-```bash
-curl -i -X POST http://localhost:3000/dev/validate \
-  -H 'content-type: application/json' \
-  -d '{}'
+```json
+{}
 ```
 
 body ที่ถูกกฎ
 
-```bash
-curl -i -X POST http://localhost:3000/dev/validate \
-  -H 'content-type: application/json' \
-  -d '{"label":"ok"}'
+```json
+{"label":"ok"}
 ```
 
-เมื่อสามคำสั่งนี้ตรงตามเกณฑ์แล้ว ลบ `src/dev/probe.dto.ts`, `src/dev/probe.controller.ts`, และเอา `ProbeController` ออกจาก `AppModule` รีสตาร์ต แล้วรันซ้ำ
+เมื่อสามคำขอนี้ตรงตามเกณฑ์แล้ว ลบ `src/dev/probe.dto.ts`, `src/dev/probe.controller.ts`, และเอา `ProbeController` ออกจาก `AppModule` รีสตาร์ต แล้วส่ง `{"label":"ok"}` ซ้ำ
 
-```bash
-curl -i -X POST http://localhost:3000/dev/validate \
-  -H 'content-type: application/json' \
-  -d '{"label":"ok"}'
-```
-
-`GET /` ต้องยังเป็น `Hello World!`
+`GET {{baseUrl}}/` ต้องยังเป็น `Hello World!`
 
 ### ผลที่ต้องเห็น
 
@@ -1079,11 +1098,13 @@ npm test
 
 เคสปัดเศษและเคสขาดทุนผ่านด้วย แอปที่ `localhost:3000` ยังตอบ `Hello World!` และยังไม่มี `GET /tax/summary`
 
-```bash
-curl -i http://localhost:3000/tax/summary
+ส่งจาก Postman
+
+```text
+GET {{baseUrl}}/tax/summary
 ```
 
-คำสั่งนี้ต้องยังไม่ใช่ตัวตอบของสรุปภาษี ถ้าร่างเก่ามี route นี้แล้ว อย่าใช้มันเป็นเกณฑ์ของขั้น 5 เกณฑ์คือ `npm test`
+คำขอนี้ต้องยังไม่ใช่ตัวตอบของสรุปภาษี ถ้าร่างเก่ามี route นี้แล้ว อย่าใช้มันเป็นเกณฑ์ของขั้น 5 เกณฑ์คือ `npm test`
 
 ### ถ้าไม่ผ่าน
 
@@ -1496,49 +1517,78 @@ export class UsersController {
 
 ### คำสั่งที่รันเอง
 
-รีสตาร์ต `start:dev` ใช้อีเมลที่ยังไม่เคยสมัคร ถ้ารันซ้ำและได้ 409 ให้เปลี่ยนอีเมล หรือใช้คำสั่งล็อกอินแทนคำสั่งสมัคร
+รีสตาร์ต `start:dev` ใช้อีเมลที่ยังไม่เคยสมัคร ถ้ารันซ้ำและได้ 409 ให้เปลี่ยนอีเมล หรือใช้คำขอล็อกอินแทนคำขอสมัคร
 
-สมัคร
+สมัคร ที่แท็บ Tests เก็บโทเคนลง `token`
 
-```bash
-curl -i -X POST http://localhost:3000/auth/register \
-  -H 'content-type: application/json' \
-  -d '{"email":"ada@example.com","password":"correct-horse","name":"Ada Lovelace"}'
+```text
+POST {{baseUrl}}/auth/register
 ```
 
-เก็บโทเคนจากฟิลด์ `accessToken` ของคำตอบนั้น
-
-```bash
-TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"email":"ada@example.com","password":"correct-horse"}' \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+```json
+{"email":"ada@example.com","password":"correct-horse","name":"Ada Lovelace"}
 ```
 
-จากนั้น
+```js
+pm.environment.set('token', pm.response.json().accessToken);
+```
 
-```bash
-curl -s http://localhost:3000/users/me -H "authorization: Bearer $TOKEN"
-curl -i -X PATCH http://localhost:3000/users/me/onboarding \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"practiceType":"mobile","expenseMethod":"flat_rate"}'
-curl -i -X PATCH http://localhost:3000/users/me/onboarding \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"practiceType":"mobile","expenseMethod":"flat_rate"}'
-curl -i -X PATCH http://localhost:3000/users/me/onboarding \
-  -H 'content-type: application/json' \
-  -d '{"practiceType":"mobile","expenseMethod":"flat_rate"}'
-curl -i -X POST http://localhost:3000/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"email":"ada@example.com","password":"wrong-password"}'
-curl -i -X POST http://localhost:3000/auth/register \
-  -H 'content-type: application/json' \
-  -d '{"email":"ada@example.com","password":"correct-horse","name":"Ada Lovelace"}'
-curl -i -X POST http://localhost:3000/auth/register \
-  -H 'content-type: application/json' \
-  -d '{"email":"ada@example.com","password":"short","extra":true}'
+ล็อกอิน ใช้สคริปต์ Tests เดียวกัน เพื่อให้ `token` เป็นโทเคนล่าสุด
+
+```text
+POST {{baseUrl}}/auth/login
+```
+
+```json
+{"email":"ada@example.com","password":"correct-horse"}
+```
+
+จากนั้นคำขอของ Ada ใส่ Bearer `{{token}}`
+
+```text
+GET {{baseUrl}}/users/me
+```
+
+```text
+PATCH {{baseUrl}}/users/me/onboarding
+```
+
+```json
+{"practiceType":"mobile","expenseMethod":"flat_rate"}
+```
+
+ส่ง PATCH ก้อนเดิมอีกครั้ง ยังใส่ Bearer `{{token}}`
+
+ส่ง PATCH ก้อนเดิมอีกครั้ง แต่ปิด Authorization
+
+ล็อกอินรหัสผิด ปิด Authorization
+
+```text
+POST {{baseUrl}}/auth/login
+```
+
+```json
+{"email":"ada@example.com","password":"wrong-password"}
+```
+
+สมัครอีเมลซ้ำ
+
+```text
+POST {{baseUrl}}/auth/register
+```
+
+```json
+{"email":"ada@example.com","password":"correct-horse","name":"Ada Lovelace"}
+```
+
+รหัสสั้นและมีฟิลด์แปลก
+
+```text
+POST {{baseUrl}}/auth/register
+```
+
+```json
+{"email":"ada@example.com","password":"short","extra":true}
 ```
 
 ### ผลที่ต้องเห็น
@@ -1549,7 +1599,7 @@ curl -i -X POST http://localhost:3000/auth/register \
 
 onboarding ครั้งแรกได้ `200` สองฟิลด์ตรงกับที่ส่ง และ `onboardedAt` เป็นสตริงเวลาแบบ ISO 8601 ครั้งที่สองได้ `409` ข้อความ `Onboarding already completed`
 
-คำขอ onboarding ที่ไม่มี Bearer ได้ `401` ข้อความ `Unauthorized` นี่คือผลของเทอร์มินัลที่เรียกเส้นนี้โดยยังไม่ส่งโทเคน
+คำขอ onboarding ที่ไม่มี Bearer ได้ `401` ข้อความ `Unauthorized` นี่คือผลของคำขอที่ยังไม่ส่งโทเคน
 
 รหัสผิดได้ `401` ข้อความ `Invalid email or password` อีเมลซ้ำได้ `409` ข้อความ `Email already registered`
 
@@ -1557,7 +1607,7 @@ onboarding ครั้งแรกได้ `200` สองฟิลด์ต�
 
 ### ถ้าไม่ผ่าน
 
-- onboarding ได้ `401` ทั้งที่คิดว่าส่งโทเคนแล้ว: ดูว่าหัวเขียนเป็น `Authorization: Bearer <token>` มีช่องว่างหนึ่งช่อง และตัวแปร `TOKEN` ไม่ว่าง `echo "$TOKEN"` ต้องเห็นสตริง
+- onboarding ได้ `401` ทั้งที่คิดว่าส่งโทเคนแล้ว: ดูว่า Authorization เป็น Bearer Token ค่าเป็น `{{token}}` และใน environment ค่า `token` ไม่ว่าง
 - ได้ `201` จากการล็อกอิน: ลืม `@HttpCode(HttpStatus.OK)` POST ของ Nest ค่าเริ่มต้นคือ 201
 - `onboardedAt` หายไปตอนยังไม่ onboard: `toPublicUser` ต้องใส่คีย์นี้แม้ค่าจะเป็น `null` การละคีย์กับค่า `null` ไม่เหมือนกันใน JSON
 - ตัวตอบมี `passwordHash`: กำลังคืนแถวจาก Prisma ทั้งก้อน ให้ผ่าน `toPublicUser` ก่อนส่ง
@@ -1565,7 +1615,7 @@ onboarding ครั้งแรกได้ `200` สองฟิลด์ต�
 - `GET /` กลายเป็น 401: การ์ดถูกใส่แบบ global ให้อยู่ที่ `UsersController` เท่านั้น
 - ฟิลด์ `extra` ในการสมัครได้ 201: pipe จากขั้น 4 ไม่ได้ถูกใส่ หรือ DTO ถูก import แบบ `import type` ใน controller
 
-**ผ่านแล้วค่อยไปขั้นถัดไป** เก็บ `TOKEN` ของ Ada ไว้ใช้ในขั้น 8 เธอ onboard แบบ `flat_rate` แล้ว
+**ผ่านแล้วค่อยไปขั้นถัดไป** เก็บตัวแปร `token` ของ Ada ไว้ใช้ในขั้น 8 เธอ onboard แบบ `flat_rate` แล้ว
 
 ---
 
@@ -1694,16 +1744,29 @@ export class ExpenseCategoriesController {
 
 ### คำสั่งที่รันเอง
 
-รีสตาร์ตแอป เพื่อให้ `onModuleInit` ใส่แถว สมัครผู้ใช้คนที่สองที่ยังไม่ onboard
+รีสตาร์ตแอป เพื่อให้ `onModuleInit` ใส่แถว สมัครผู้ใช้คนที่สองที่ยังไม่ onboard ที่แท็บ Tests เก็บโทเคนลง `bee`
+
+```text
+POST {{baseUrl}}/auth/register
+```
+
+```json
+{"email":"bee@example.com","password":"correct-horse","name":"Bea"}
+```
+
+```js
+pm.environment.set('bee', pm.response.json().accessToken);
+```
+
+จากนั้น
+
+```text
+GET {{baseUrl}}/expense-categories
+```
+
+คำขอแรกใส่ Bearer `{{bee}}` คำขอที่สองส่งเส้นเดิมแต่ปิด Authorization
 
 ```bash
-BEE=$(curl -s -X POST http://localhost:3000/auth/register \
-  -H 'content-type: application/json' \
-  -d '{"email":"bee@example.com","password":"correct-horse","name":"Bea"}' \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
-curl -s http://localhost:3000/expense-categories \
-  -H "authorization: Bearer $BEE"
-curl -i http://localhost:3000/expense-categories
 docker compose exec postgres psql -U theratax -d theratax_dev -c 'SELECT slug FROM "ExpenseCategory"'
 ```
 
@@ -1924,77 +1987,102 @@ controller ใช้ `@UseGuards(AuthGuard)` ทั้งคลาส `POST` ไ
 
 ### คำสั่งที่รันเอง
 
-รันเทสวันที่ก่อน curl
+รันเทสวันที่ก่อนยิงจาก Postman
 
 ```bash
 npm test
 ```
 
-จากนั้นใช้โทเคนของ Ada ที่เป็น `flat_rate` แล้ว และโทเคนของ Bea ที่ยังไม่ onboard ถ้าเซสชันเก่าหมด ให้ล็อกอินใหม่แล้วเก็บ `TOKEN` กับ `BEE` ใหม่
+จากนั้นใช้โทเคนของ Ada ที่เป็น `flat_rate` แล้ว คือ Bearer `{{token}}` และโทเคนของ Bea ที่ยังไม่ onboard คือ Bearer `{{bee}}` ถ้าเซสชันเก่าหมด ให้ล็อกอินใหม่แล้วอัปเดต `token` กับ `bee`
 
 Bea ยังจดไม่ได้
 
-```bash
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $BEE" \
-  -H 'content-type: application/json' \
-  -d '{"type":"income","amountPence":100}'
+```text
+POST {{baseUrl}}/transactions
+```
+
+```json
+{"type":"income","amountPence":100}
 ```
 
 Ada จดไมล์ 11,000 วันที่ 1 มิถุนายน 2026
 
-```bash
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"type":"expense","categorySlug":"mileage","miles":11000,"occurredOn":"01-06-2026"}'
+```text
+POST {{baseUrl}}/transactions
 ```
 
-จากนั้นแทรกทริป 1,000 ไมล์วันที่ 6 เมษายน 2026 ซึ่งมาก่อน
-
-```bash
-curl -s -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"type":"expense","categorySlug":"mileage","miles":1000,"occurredOn":"06-04-2026"}'
-curl -s 'http://localhost:3000/transactions?limit=20' \
-  -H "authorization: Bearer $TOKEN"
+```json
+{"type":"expense","categorySlug":"mileage","miles":11000,"occurredOn":"01-06-2026"}
 ```
 
-รายรับเงินสด £20,000 และวันที่นอกปี
+จากนั้นแทรกทริป 1,000 ไมล์วันที่ 6 เมษายน 2026 ซึ่งมาก่อน แล้วยิงรายการ
 
-```bash
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"type":"income","amountPence":2000000,"occurredOn":"01-05-2026","note":"cash session"}'
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"type":"expense","categorySlug":"mileage","miles":11000,"occurredOn":"01-06-2026","amountPence":1}'
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"type":"expense","categorySlug":"mileage","miles":10,"occurredOn":"01-04-2026"}'
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"type":"expense","categorySlug":"vehicle-costs","amountPence":5000,"occurredOn":"02-05-2026"}'
-curl -i 'http://localhost:3000/transactions?type=cash' \
-  -H "authorization: Bearer $TOKEN"
+```text
+POST {{baseUrl}}/transactions
 ```
 
-ให้ Bea ทำ onboarding เป็น `actual_cost` แล้วลองหมวดไมล์ต้องถูกปฏิเสธ จากนั้นจึงใช้หมวด `vehicle-costs` ได้ นั่นคือ `PATCH /users/me/onboarding` ของ Bea ด้วย `expenseMethod` เป็น `actual_cost`
+```json
+{"type":"expense","categorySlug":"mileage","miles":1000,"occurredOn":"06-04-2026"}
+```
 
-```bash
-curl -s -X PATCH http://localhost:3000/users/me/onboarding \
-  -H "authorization: Bearer $BEE" \
-  -H 'content-type: application/json' \
-  -d '{"practiceType":"fixedLocation","expenseMethod":"actual_cost"}'
-curl -i -X POST http://localhost:3000/transactions \
-  -H "authorization: Bearer $BEE" \
-  -H 'content-type: application/json' \
-  -d '{"type":"expense","categorySlug":"mileage","miles":10,"occurredOn":"02-05-2026"}'
+```text
+GET {{baseUrl}}/transactions?limit=20
+```
+
+รายรับเงินสด £20,000 และวันที่นอกปี คำขอเหล่านี้เป็นของ Ada ใส่ Bearer `{{token}}`
+
+```text
+POST {{baseUrl}}/transactions
+```
+
+```json
+{"type":"income","amountPence":2000000,"occurredOn":"01-05-2026","note":"cash session"}
+```
+
+```text
+POST {{baseUrl}}/transactions
+```
+
+```json
+{"type":"expense","categorySlug":"mileage","miles":11000,"occurredOn":"01-06-2026","amountPence":1}
+```
+
+```text
+POST {{baseUrl}}/transactions
+```
+
+```json
+{"type":"expense","categorySlug":"mileage","miles":10,"occurredOn":"01-04-2026"}
+```
+
+```text
+POST {{baseUrl}}/transactions
+```
+
+```json
+{"type":"expense","categorySlug":"vehicle-costs","amountPence":5000,"occurredOn":"02-05-2026"}
+```
+
+```text
+GET {{baseUrl}}/transactions?type=cash
+```
+
+ให้ Bea ทำ onboarding เป็น `actual_cost` แล้วลองหมวดไมล์ต้องถูกปฏิเสธ จากนั้นจึงใช้หมวด `vehicle-costs` ได้ นั่นคือ `PATCH /users/me/onboarding` ของ Bea ด้วย `expenseMethod` เป็น `actual_cost` ใส่ Bearer `{{bee}}`
+
+```text
+PATCH {{baseUrl}}/users/me/onboarding
+```
+
+```json
+{"practiceType":"fixedLocation","expenseMethod":"actual_cost"}
+```
+
+```text
+POST {{baseUrl}}/transactions
+```
+
+```json
+{"type":"expense","categorySlug":"mileage","miles":10,"occurredOn":"02-05-2026"}
 ```
 
 ### ผลที่ต้องเห็น
@@ -2086,17 +2174,31 @@ controller เป็น `@Controller('tax')`, `@UseGuards(AuthGuard)`, เมธ
 
 ### คำสั่งที่รันเอง
 
-สมัครผู้ใช้คนที่สามชื่อ Cai อย่า onboard แล้วเรียกสรุป ใช้ Ada ซึ่งมีรายรับ `2000000` จากขั้น 8 สำหรับเคสตัวเลข ถ้า Ada มีค่าใช้จ่ายไมล์อยู่ด้วย ผลจะไม่ใช่ £20,000 พอดี ให้ใช้ผู้ใช้ใหม่ที่ onboard แบบ `flat_rate` แล้วจดรายรับก้อนเดียว `2000000` วันที่ `01-05-2026` โดยไม่มีรายจ่าย แล้วค่อยเรียกสรุปด้วยโทเคนของคนนั้น สมมติเก็บไว้ใน `CAI` หลังเธอ onboard แล้ว
-
-```bash
-curl -i 'http://localhost:3000/tax/summary' -H "authorization: Bearer $CAI"
-curl -i 'http://localhost:3000/tax/summary?taxYear=2026' -H "authorization: Bearer $CAI"
-curl -i 'http://localhost:3000/tax/summary?taxYear=2025' -H "authorization: Bearer $CAI"
-curl -i 'http://localhost:3000/tax/summary?taxYear=abc' -H "authorization: Bearer $CAI"
-curl -i http://localhost:3000/tax/summary
-```
+สมัครผู้ใช้คนที่สามชื่อ Cai อย่า onboard แล้วเรียกสรุป ใช้ Ada ซึ่งมีรายรับ `2000000` จากขั้น 8 สำหรับเคสตัวเลข ถ้า Ada มีค่าใช้จ่ายไมล์อยู่ด้วย ผลจะไม่ใช่ £20,000 พอดี ให้ใช้ผู้ใช้ใหม่ที่ onboard แบบ `flat_rate` แล้วจดรายรับก้อนเดียว `2000000` วันที่ `01-05-2026` โดยไม่มีรายจ่าย แล้วค่อยเรียกสรุปด้วยโทเคนของคนนั้น เก็บ `accessToken` ลงตัวแปร `cai`
 
 ก่อน onboard ของ Cai คำขอแรกของเธอต้องเป็น 403 ลำดับจึงเป็น สมัคร, เรียกสรุปเพื่อเห็น 403, onboard, จดรายรับก้อนเดียว, เรียกสรุปอีกครั้ง
+
+สี่คำขอแรกใส่ Bearer `{{cai}}` คำขอสุดท้ายปิด Authorization
+
+```text
+GET {{baseUrl}}/tax/summary
+```
+
+```text
+GET {{baseUrl}}/tax/summary?taxYear=2026
+```
+
+```text
+GET {{baseUrl}}/tax/summary?taxYear=2025
+```
+
+```text
+GET {{baseUrl}}/tax/summary?taxYear=abc
+```
+
+```text
+GET {{baseUrl}}/tax/summary
+```
 
 ### ผลที่ต้องเห็น
 
@@ -2147,7 +2249,7 @@ curl -i http://localhost:3000/tax/summary
 
 ### ยังไม่ทำในขั้นนี้
 
-ยังไม่สร้างใบแจ้งหนี้ และยังไม่ทำหน้า React การเปิดลิงก์ใช้ `curl` หรือเบราว์เซอร์ยิงที่ URL ที่ได้มา
+ยังไม่สร้างใบแจ้งหนี้ และยังไม่ทำหน้า React การเปิดลิงก์ใช้ Postman หรือเบราว์เซอร์ยิงที่ URL ที่ได้มา
 
 ### แนวคิด
 
@@ -2262,32 +2364,34 @@ S3_BUCKET=receipts
 docker compose up -d
 ```
 
-รีสตาร์ต `start:dev` เตรียมไฟล์รูปเล็ก ๆ ชื่อ `receipt.jpg` ที่เป็น JPEG จริง และไฟล์ `notes.txt` ใช้ธุรกรรมของ Ada เก็บ id ไว้ใน `TX`
+รีสตาร์ต `start:dev` เตรียมไฟล์รูปเล็ก ๆ ชื่อ `receipt.jpg` ที่เป็น JPEG จริง และไฟล์ `notes.txt` ใช้ธุรกรรมของ Ada เก็บ id ไว้ในตัวแปร `tx` ของ environment ธุรกรรมที่ไม่มีรูปเก็บ id ไว้ใน `empty`
 
-```bash
-curl -i -X POST "http://localhost:3000/transactions/$TX/receipt" \
-  -H "authorization: Bearer $TOKEN" \
-  -F file=@receipt.jpg
-curl -s "http://localhost:3000/transactions/$TX/receipt" \
-  -H "authorization: Bearer $TOKEN"
+อัปโหลดครั้งแรก ใส่ Bearer `{{token}}` เปิด Body เลือก form-data คีย์ชื่อ `file` ชนิดเป็น File แล้วเลือก `receipt.jpg` อย่าตั้ง `Content-Type` เอง
+
+```text
+POST {{baseUrl}}/transactions/{{tx}}/receipt
 ```
 
-เอาค่า `url` จากคำตอบที่สองไปเปิด
+ขอลิงก์ ใส่ Bearer `{{token}}`
 
-```bash
-curl -i "$URL"
+```text
+GET {{baseUrl}}/transactions/{{tx}}/receipt
 ```
 
-จากนั้นอัปโหลด `receipt.jpg` ซ้ำ แล้วขอลิงก์ใหม่ ลองไฟล์ข้อความ และลองธุรกรรมที่ไม่มีรูป สมมติ id นั้นคือ `EMPTY`
+เอาค่า `url` จากคำตอบนั้นไปเปิด เป็นคำขอ GET ใหม่ วาง URL ทั้งเส้น ปิด Authorization
 
-```bash
-curl -i -X POST "http://localhost:3000/transactions/$TX/receipt" \
-  -H "authorization: Bearer $TOKEN" \
-  -F file=@notes.txt
-curl -i "http://localhost:3000/transactions/$EMPTY/receipt" \
-  -H "authorization: Bearer $TOKEN"
-curl -s "http://localhost:3000/transactions?limit=20" \
-  -H "authorization: Bearer $TOKEN"
+จากนั้นอัปโหลด `receipt.jpg` ซ้ำด้วย POST เดิม แล้วขอลิงก์ใหม่ ทั้งคู่ใส่ Bearer `{{token}}`
+
+ลองไฟล์ข้อความด้วย POST เดิม เปลี่ยนไฟล์ใน form-data เป็น `notes.txt`
+
+ธุรกรรมที่ไม่มีรูป และรายการธุรกรรม ใส่ Bearer `{{token}}`
+
+```text
+GET {{baseUrl}}/transactions/{{empty}}/receipt
+```
+
+```text
+GET {{baseUrl}}/transactions?limit=20
 ```
 
 ### ผลที่ต้องเห็น
@@ -2296,7 +2400,7 @@ curl -s "http://localhost:3000/transactions?limit=20" \
 
 การขอลิงก์ได้ `200` มี `url` ที่ขึ้นต้นด้วย endpoint ของ MinIO และ `expiresAt` ห่างจากเวลาที่ขอประมาณ 15 นาที ยอมให้คลาดเคลื่อนได้ภายในหนึ่งนาที
 
-`curl` ลิงก์นั้นได้ไบต์ของรูป สถานะ `200` การเปิดลิงก์ในเบราว์เซอร์เห็นภาพ
+Postman เปิดลิงก์นั้นได้ไบต์ของรูป สถานะ `200` การเปิดลิงก์ในเบราว์เซอร์เห็นภาพ
 
 อัปโหลดซ้ำได้ `201` และลิงก์ใหม่ยังเปิดรูปได้
 
@@ -2449,32 +2553,60 @@ return new StreamableFile(Buffer.from(bytes), {
 npm test
 ```
 
-ใช้ผู้ใช้ที่ onboard แล้ว จำ `incomePence` จาก `GET /tax/summary` ไว้เป็น `BEFORE` สร้างใบ £65.00 วันที่ 1 พฤษภาคม 2026
+ใช้ผู้ใช้ที่ onboard แล้ว ใส่ Bearer `{{token}}` จำ `incomePence` จาก `GET /tax/summary` ไว้ แล้วสร้างใบ £65.00 วันที่ 1 พฤษภาคม 2026 ที่แท็บ Tests ของคำขอสร้างใบ เก็บ id
 
-```bash
-curl -i -X POST http://localhost:3000/invoices \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"clientName":"North Clinic","service":"Sports massage","amountPence":6500,"issuedOn":"01-05-2026"}'
-curl -s 'http://localhost:3000/tax/summary' -H "authorization: Bearer $TOKEN"
-curl -s 'http://localhost:3000/transactions?type=income' -H "authorization: Bearer $TOKEN"
+```js
+pm.environment.set('invoiceId', String(pm.response.json().id));
 ```
 
-จากนั้นจ่ายวันที่ 2 พฤษภาคม ใช้ id จากใบที่เพิ่งได้
+```text
+POST {{baseUrl}}/invoices
+```
 
-```bash
-curl -i -X PATCH "http://localhost:3000/invoices/$ID" \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"status":"paid","paidOn":"02-05-2026"}'
-curl -s 'http://localhost:3000/tax/summary' -H "authorization: Bearer $TOKEN"
-curl -s 'http://localhost:3000/transactions?type=income' -H "authorization: Bearer $TOKEN"
-curl -i -D - -o "TT-check.pdf" "http://localhost:3000/invoices/$ID/pdf" \
-  -H "authorization: Bearer $TOKEN"
-curl -i -X PATCH "http://localhost:3000/invoices/$ID" \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"status":"paid"}'
+```json
+{"clientName":"North Clinic","service":"Sports massage","amountPence":6500,"issuedOn":"01-05-2026"}
+```
+
+```text
+GET {{baseUrl}}/tax/summary
+```
+
+```text
+GET {{baseUrl}}/transactions?type=income
+```
+
+จากนั้นจ่ายวันที่ 2 พฤษภาคม
+
+```text
+PATCH {{baseUrl}}/invoices/{{invoiceId}}
+```
+
+```json
+{"status":"paid","paidOn":"02-05-2026"}
+```
+
+```text
+GET {{baseUrl}}/tax/summary
+```
+
+```text
+GET {{baseUrl}}/transactions?type=income
+```
+
+ดาวน์โหลด PDF กดลูกศรข้าง Send แล้วเลือก Send and Download บันทึกเป็น `TT-check.pdf` ดูหัวในแท็บ Headers
+
+```text
+GET {{baseUrl}}/invoices/{{invoiceId}}/pdf
+```
+
+จ่ายซ้ำ
+
+```text
+PATCH {{baseUrl}}/invoices/{{invoiceId}}
+```
+
+```json
+{"status":"paid"}
 ```
 
 เปิด `TT-check.pdf` ด้วยตัวอ่าน PDF
@@ -2485,7 +2617,7 @@ curl -i -X PATCH "http://localhost:3000/invoices/$ID" \
 
 สร้างใบได้ `201` เลขที่เป็น `TT-` ตามด้วยอย่างน้อยสี่หลัก `status` เป็น `issued` ไม่มี `paidOn` และไม่มี `transactionId`
 
-หลังสร้างและก่อนจ่าย `incomePence` เท่ากับ `BEFORE` รายการรายรับไม่มีแถวที่ `note` เป็นเลขที่ใบนี้
+หลังสร้างและก่อนจ่าย `incomePence` เท่ากับค่าที่จำไว้ก่อนสร้างใบ รายการรายรับไม่มีแถวที่ `note` เป็นเลขที่ใบนี้
 
 หลังจ่ายได้ `200` มี `paidOn` เป็น `02-05-2026` และมี `transactionId` ฟีดมีรายรับยอด `6500` วัน `02-05-2026` โน้ตเป็นเลขที่ใบ ไม่มี `categorySlug` และไม่มี `miles`
 
@@ -2517,7 +2649,7 @@ curl -i -X PATCH "http://localhost:3000/invoices/$ID" \
 
 ### ทำไมขั้นนี้มาท้ายสุด
 
-หน้าเว็บเป็นลูกค้าของสัญญา ถ้าขีดหน้าก่อนที่ `curl` ของขั้นนั้นจะผ่าน ปุ่มจะพังโดยไม่รู้ว่าพังที่ฟอร์มหรือที่ API ทำทีละหน้าตาม [`01_user_flow.md`](01_user_flow.md) ตรวจในเบราว์เซอร์ให้จบหน้าปัจจุบันก่อนสร้างไฟล์ของหน้าถัดไป
+หน้าเว็บเป็นลูกค้าของสัญญา ถ้าขีดหน้าก่อนที่คำขอ Postman ของขั้นนั้นจะผ่าน ปุ่มจะพังโดยไม่รู้ว่าพังที่ฟอร์มหรือที่ API ทำทีละหน้าตาม [`01_user_flow.md`](01_user_flow.md) ตรวจในเบราว์เซอร์ให้จบหน้าปัจจุบันก่อนสร้างไฟล์ของหน้าถัดไป
 
 มีหน้าเข้าสู่ระบบนำหน้า flow ทั้งห้าข้อ เพราะไม่มีโทเคนก็เรียก onboarding ไม่ได้ มันไม่ใช่ข้อใน user flow แต่เป็นประตูของ API
 
@@ -2650,7 +2782,7 @@ hint ไม่มี endpoint ให้เดินตามนี้ในเ�
 
 แสดง `assumptions` ทั้งหกข้อตามลำดับ และ `disclaimer` ทั้งประโยคตรงกับที่ API ส่ง
 
-ตรวจ: ตัวเลขบนหน้าตรงกับ `curl` ของผู้ใช้คนเดียวกัน ใบที่ยังไม่จ่ายไม่ทำให้ยอดขยับ หลังกลับไปจ่ายบนหน้าใบแจ้งหนี้แล้วเปิดหน้านี้ใหม่ ยอดรายรับเพิ่มเท่าจำนวนบนใบนั้น หน้าฟีดยังจดรายการได้โดยไม่รอให้หน้านี้โหลด
+ตรวจ: ตัวเลขบนหน้าตรงกับคำขอ Postman ของผู้ใช้คนเดียวกัน ใบที่ยังไม่จ่ายไม่ทำให้ยอดขยับ หลังกลับไปจ่ายบนหน้าใบแจ้งหนี้แล้วเปิดหน้านี้ใหม่ ยอดรายรับเพิ่มเท่าจำนวนบนใบนั้น หน้าฟีดยังจดรายการได้โดยไม่รอให้หน้านี้โหลด
 
 **ผ่านหน้านี้แล้ว บทเรียนจบ**
 
@@ -2662,7 +2794,7 @@ hint ไม่มี endpoint ให้เดินตามนี้ในเ�
 - hint ยิง request: มีคนสร้างเส้น hint ฝั่ง API ให้ลบการเรียกนั้น คำแนะนำมาจาก keywords ในหน่วยความจำ
 - จดไมล์แล้วยอดเป็น 0: ฟอร์มยังส่ง `amountPence` คู่กับ `miles` ฝั่ง flat rate ให้ส่งเฉพาะ `miles`
 - สร้างใบแจ้งหนี้แล้วฟีดมีรายรับทันที: หน้าใบแจ้งหนี้ไปยิง `POST /transactions` เพิ่ม ให้เหลือแค่ `POST /invoices` จนกว่าจะกดจ่าย
-- ตัวเลขภาษีบนหน้าไม่ตรง `curl`: หน้าไปคำนวณอัตราเอง ให้แสดงตัวเลขจาก `GET /tax/summary` ตรง ๆ
+- ตัวเลขภาษีบนหน้าไม่ตรงคำขอ Postman: หน้าไปคำนวณอัตราเอง ให้แสดงตัวเลขจาก `GET /tax/summary` ตรง ๆ
 
 ## เมื่อเดินครบสิบสองขั้น
 
