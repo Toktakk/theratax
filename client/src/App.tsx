@@ -5,6 +5,7 @@ import { clearToken, getToken, onSignedOut, request } from './api.ts';
 import { FeedPage } from './pages/FeedPage.tsx';
 import { InvoicePage } from './pages/InvoicePage.tsx';
 import { OnboardingPage } from './pages/OnboardingPage.tsx';
+import { RegisterPage } from './pages/RegisterPage.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
 import { TaxSummaryPage } from './pages/TaxSummaryPage.tsx';
 import { asReadyUser } from './types.ts';
@@ -63,6 +64,10 @@ export default function App() {
     navigate('/');
   }
 
+  function onSignedIn(user: User) {
+    setSession(sessionFromUser(user));
+  }
+
   if (session.status === 'loading') {
     return (
       <div className="page">
@@ -73,11 +78,11 @@ export default function App() {
 
   if (session.status === 'signed-out') {
     return (
-      <SignInPage
-        onSignedIn={(user) => {
-          setSession(sessionFromUser(user));
-        }}
-      />
+      <Routes>
+        <Route path="/" element={<SignInPage onSignedIn={onSignedIn} />} />
+        <Route path="/register" element={<RegisterPage onSignedIn={onSignedIn} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     );
   }
 

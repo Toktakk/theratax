@@ -76,6 +76,10 @@ a:focus-visible {
   padding: 1.25rem 0 3rem;
 }
 
+.auth {
+  width: min(28rem, calc(100% - 2rem));
+}
+
 .top {
   display: flex;
   flex-wrap: wrap;
@@ -118,14 +122,13 @@ a:focus-visible {
   color: #fffdf8;
 }
 
+.switch-link {
+  color: var(--accent);
+}
+
 .stack {
   display: grid;
   gap: 0.9rem;
-}
-
-.split {
-  display: grid;
-  gap: 1rem;
 }
 
 .card,
@@ -303,11 +306,4 @@ ol {
 .disclaimer {
   border-left: 3px solid var(--accent);
   padding-left: 0.8rem;
-}
-
-@media (min-width: 720px) {
-  .split {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
 }
