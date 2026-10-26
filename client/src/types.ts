@@ -59,6 +59,8 @@ export interface Workplace {
   id: number;
   name: string;
   kind: WorkplaceKind;
+  hourRatePence: number;
+  pregnancyExtraPence: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +68,8 @@ export interface Workplace {
 export interface Client {
   id: number;
   name: string;
+  hourRatePence: number;
+  pregnancyExtraPence: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +89,7 @@ export interface Transaction {
   basePence?: number;
   additionalFeePence?: number;
   bonusPence?: number;
+  minutes?: number;
   workplaceId?: number;
   clientId?: number;
 }

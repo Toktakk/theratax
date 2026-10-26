@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
 import { messageOf, request } from '../api.ts';
 import { insertByName, SaveClientForm, SaveWorkplaceForm } from '../directory-forms.tsx';
+import { formatPounds } from '../format.ts';
 import { FormError } from '../FormError.tsx';
 import type { Client, ListResponse, Workplace } from '../types.ts';
+
+function rateText(hourRatePence: number, pregnancyExtraPence: number): string {
+  const rate = `${formatPounds(hourRatePence)}/hour`;
+  if (pregnancyExtraPence > 0) {
+    return `${rate} · pregnancy +${formatPounds(pregnancyExtraPence)}/hour`;
+  }
+  return rate;
+}
 
 export function DirectoryPage() {
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
@@ -75,7 +84,8 @@ export function DirectoryPage() {
         <div className="list">
           {workplaces.map((workplace) => (
             <p key={workplace.id}>
-              {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'}
+              {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
+              {rateText(workplace.hourRatePence, workplace.pregnancyExtraPence)}
             </p>
           ))}
         </div>
@@ -100,7 +110,9 @@ export function DirectoryPage() {
         ) : null}
         <div className="list">
           {clients.map((client) => (
-            <p key={client.id}>{client.name}</p>
+            <p key={client.id}>
+              {client.name} · {rateText(client.hourRatePence, client.pregnancyExtraPence)}
+            </p>
           ))}
         </div>
         <SaveClientForm

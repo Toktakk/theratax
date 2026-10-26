@@ -1,4 +1,4 @@
-import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateWorkplaceDto {
   @IsString()
@@ -8,4 +8,15 @@ export class CreateWorkplaceDto {
 
   @IsIn(['spa', 'clinic'])
   kind: 'spa' | 'clinic';
+
+  @IsInt()
+  @Min(1)
+  @Max(100_000_000)
+  hourRatePence: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  pregnancyExtraPence?: number;
 }

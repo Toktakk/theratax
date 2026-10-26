@@ -16,6 +16,8 @@ export interface TransactionResponse {
   customMassageType?: string;
   basePence?: number;
   additionalFeePence?: number;
+  bonusPence?: number;
+  minutes?: number;
   workplaceId?: number;
   clientId?: number;
 }

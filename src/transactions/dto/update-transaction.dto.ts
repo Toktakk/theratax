@@ -53,6 +53,18 @@ export class UpdateTransactionDto {
 
   @IsOptional()
   @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  bonusPence?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  minutes?: number;
+
+  @IsOptional()
+  @IsInt()
   @Min(1)
   workplaceId?: number;
 

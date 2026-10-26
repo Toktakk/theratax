@@ -4,14 +4,18 @@ import { messageOf, request } from '../api.ts';
 import { categoriesForMethod, categoryName } from '../category-filter.ts';
 import { FormError } from '../FormError.tsx';
 import {
+  basePenceFromMinutes,
   civilDateFromInput,
+  effectiveHourRatePence,
   expenseMethodLabel,
   formatPounds,
+  hoursLabel,
   isMassageType,
   MASSAGE_OPTIONS,
   massageTypeLabel,
   practiceTypeLabel,
   readAmountPence,
+  readHours,
   readOptionalAmount,
   readWholeNumber,
 } from '../format.ts';
@@ -46,6 +50,7 @@ interface EntryPayload {
   basePence?: number;
   additionalFeePence?: number;
   bonusPence?: number;
+  minutes?: number;
   workplaceId?: number;
   clientId?: number;
 }
@@ -68,11 +73,10 @@ export function FeedPage({ user }: FeedPageProps) {
   const [miles, setMiles] = useState('');
   const [pounds, setPounds] = useState('');
   const [pence, setPence] = useState('');
-  const [massageType, setMassageType] = useState<MassageType | ''>('');
+  const [massageType, setMassageType] = useState<MassageType | '' | 'cash'>('');
   const [customMassageType, setCustomMassageType] = useState('');
   const [party, setParty] = useState('');
-  const [basePounds, setBasePounds] = useState('');
-  const [basePence, setBasePence] = useState('');
+  const [hours, setHours] = useState('');
   const [feePounds, setFeePounds] = useState('');
   const [feePence, setFeePence] = useState('');
   const [bonusPounds, setBonusPounds] = useState('');
@@ -95,7 +99,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const categorySlug = pickedNote === note ? pickedSlug : (suggestion?.slug ?? pickedSlug);
   const selected = allowed.find((category) => category.slug === categorySlug);
   const mileage = type === 'expense' && selected?.kind === 'mileage';
-  const massage = type === 'income' && massageType !== '';
+  const massage = type === 'income' && massageType !== 'cash';
   const receiptKey = items
     .filter((item) => item.hasReceipt)
     .map((item) => item.id)
@@ -260,8 +264,7 @@ export function FeedPage({ user }: FeedPageProps) {
     setMassageType('');
     setCustomMassageType('');
     setParty('');
-    setBasePounds('');
-    setBasePence('');
+    setHours('');
     setFeePounds('');
     setFeePence('');
     setBonusPounds('');
@@ -303,9 +306,25 @@ export function FeedPage({ user }: FeedPageProps) {
           payload.amountPence = money.amountPence;
         }
       }
-    } else if (massageType !== '') {
+    } else if (massageType === 'cash') {
+      const money = readAmountPence(pounds, pence);
+      if (!money.ok) {
+        setFormError(money.message);
+        return;
+      }
+      if (money.amountPence > 0) {
+        payload.amountPence = money.amountPence;
+      }
+    } else if (!isMassageType(massageType)) {
+      setFormError('Choose a massage type.');
+      return;
+    } else {
       payload.massageType = massageType;
       const chosen = chosenParty(party);
+      if (chosen.workplaceId === undefined && chosen.clientId === undefined) {
+        setFormError('Choose a workplace or a client.');
+        return;
+      }
       if (chosen.workplaceId !== undefined) {
         payload.workplaceId = chosen.workplaceId;
       }
@@ -318,14 +337,21 @@ export function FeedPage({ user }: FeedPageProps) {
           payload.customMassageType = custom;
         }
       }
-      const base = readOptionalAmount(basePounds, basePence);
-      if (!base.ok) {
-        setFormError(base.message);
+      const rated = rateOf(party, workplaces, clients);
+      if (rated === null || rated.hourRatePence < 1) {
+        setFormError('Set an hour rate on Workplace name.');
         return;
       }
-      if (base.amountPence !== undefined) {
-        payload.basePence = base.amountPence;
+      const parsedHours = readHours(hours);
+      if (!parsedHours.ok) {
+        setFormError(parsedHours.message);
+        return;
       }
+      if (parsedHours.minutes === undefined || parsedHours.minutes < 1) {
+        setFormError('Enter hours.');
+        return;
+      }
+      payload.minutes = parsedHours.minutes;
       const fee = readOptionalAmount(feePounds, feePence);
       if (!fee.ok) {
         setFormError(fee.message);
@@ -341,15 +367,6 @@ export function FeedPage({ user }: FeedPageProps) {
       }
       if (bonus.amountPence !== undefined) {
         payload.bonusPence = bonus.amountPence;
-      }
-    } else {
-      const money = readAmountPence(pounds, pence);
-      if (!money.ok) {
-        setFormError(money.message);
-        return;
-      }
-      if (money.amountPence > 0) {
-        payload.amountPence = money.amountPence;
       }
     }
 
@@ -397,6 +414,11 @@ export function FeedPage({ user }: FeedPageProps) {
     }
   }
 
+  const parsedHours = readHours(hours);
+  const rated = massage ? rateOf(party, workplaces, clients) : null;
+  const draft = massageDraft(massage, massageType, parsedHours, rated, feePounds, feePence, bonusPounds, bonusPence);
+  const hourHint = massage ? hourPreview(parsedHours, rated, massageType) : '';
+
   return (
     <div className="stack">
       <div>
@@ -437,23 +459,6 @@ export function FeedPage({ user }: FeedPageProps) {
             </div>
           </fieldset>
           <label className="field">
-            Note
-            <input
-              ref={noteRef}
-              value={note}
-              maxLength={500}
-              autoFocus
-              onChange={(event) => {
-                setNote(event.target.value);
-              }}
-            />
-          </label>
-          {type === 'expense' && suggestion !== null ? (
-            <p className="hint" aria-live="polite">
-              Suggested: {suggestion.name}
-            </p>
-          ) : null}
-          <label className="field">
             Date
             <input
               type="date"
@@ -471,17 +476,18 @@ export function FeedPage({ user }: FeedPageProps) {
                 value={massageType}
                 onChange={(event) => {
                   const value = event.target.value;
-                  if (value === '' || isMassageType(value)) {
+                  if (value === '' || value === 'cash' || isMassageType(value)) {
                     setMassageType(value);
                   }
                 }}
               >
-                <option value="">Cash income</option>
+                <option value="">Massage Type</option>
                 {MASSAGE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
+                <option value="cash">Cash income</option>
               </select>
             </label>
           ) : (
@@ -514,18 +520,19 @@ export function FeedPage({ user }: FeedPageProps) {
                     setParty(event.target.value);
                   }}
                 >
-                  <option value="">Neither</option>
+                  <option value="">Choose</option>
                   <optgroup label="Workplaces">
                     {workplaces.map((workplace) => (
                       <option key={`workplace-${workplace.id}`} value={`workplace:${workplace.id}`}>
-                        {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'}
+                        {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
+                        {rateText(workplace.hourRatePence, workplace.pregnancyExtraPence)}
                       </option>
                     ))}
                   </optgroup>
                   <optgroup label="Clients">
                     {clients.map((client) => (
                       <option key={`client-${client.id}`} value={`client:${client.id}`}>
-                        {client.name}
+                        {client.name} · {rateText(client.hourRatePence, client.pregnancyExtraPence)}
                       </option>
                     ))}
                   </optgroup>
@@ -546,13 +553,17 @@ export function FeedPage({ user }: FeedPageProps) {
                   />
                 </label>
               ) : null}
-              <MoneyPair
-                legend="Base Massage Income"
-                pounds={basePounds}
-                pence={basePence}
-                onPounds={setBasePounds}
-                onPence={setBasePence}
-              />
+              <label className="field">
+                Hours
+                <input
+                  inputMode="decimal"
+                  value={hours}
+                  onChange={(event) => {
+                    setHours(event.target.value);
+                  }}
+                />
+                <span className="muted">{hourHint}</span>
+              </label>
               <MoneyPair
                 legend="Additional Massage Fee"
                 pounds={feePounds}
@@ -602,6 +613,23 @@ export function FeedPage({ user }: FeedPageProps) {
               onPence={setPence}
             />
           ) : null}
+          <label className="field">
+            Note
+            <input
+              ref={noteRef}
+              value={note}
+              maxLength={500}
+              autoFocus
+              onChange={(event) => {
+                setNote(event.target.value);
+              }}
+            />
+          </label>
+          {type === 'expense' && suggestion !== null ? (
+            <p className="hint" aria-live="polite">
+              Suggested: {suggestion.name}
+            </p>
+          ) : null}
           <FormError message={formError} />
           <FormError message={categoriesError} />
           <button
@@ -617,7 +645,9 @@ export function FeedPage({ user }: FeedPageProps) {
         <h3>Daily summary{summary === null ? '' : ` · ${summary.date}`}</h3>
         {summaryLoading ? <p className="muted">Loading summary…</p> : null}
         {summaryError !== '' ? <FormError message={summaryError} /> : null}
-        {summary !== null && summaryError === '' ? <SummaryFigures summary={summary} /> : null}
+        {summary !== null && summaryError === '' ? (
+          <SummaryFigures summary={shownSummary(summary, items, draft)} />
+        ) : null}
       </section>
       <FormError message={listError} />
       {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}
@@ -778,7 +808,10 @@ function TransactionRow({
       {item.massageType === undefined ? null : (
         <div className="parts">
           <p>{massageTypeLabel(item.massageType, item.customMassageType)}</p>
-          <p>Base Massage Income {formatPounds(item.basePence ?? 0)}</p>
+          <p>
+            {item.minutes === undefined ? 'Base' : hoursLabel(item.minutes)} · base{' '}
+            {formatPounds(item.basePence ?? 0)}
+          </p>
           <p>Additional Massage Fee {formatPounds(item.additionalFeePence ?? 0)}</p>
           <p>Bonus {formatPounds(item.bonusPence ?? 0)}</p>
         </div>
@@ -830,6 +863,118 @@ function partyName(
     return client === undefined ? null : client.name;
   }
   return null;
+}
+
+function rateText(hourRatePence: number, pregnancyExtraPence: number): string {
+  const rate = `${formatPounds(hourRatePence)}/hour`;
+  if (pregnancyExtraPence > 0) {
+    return `${rate} · pregnancy +${formatPounds(pregnancyExtraPence)}/hour`;
+  }
+  return rate;
+}
+
+function rateOf(
+  party: string,
+  workplaces: readonly Workplace[],
+  clients: readonly Client[],
+): { hourRatePence: number; pregnancyExtraPence: number } | null {
+  const chosen = chosenParty(party);
+  if (chosen.workplaceId !== undefined) {
+    const workplace = workplaces.find((row) => row.id === chosen.workplaceId);
+    if (workplace === undefined) {
+      return null;
+    }
+    return {
+      hourRatePence: workplace.hourRatePence,
+      pregnancyExtraPence: workplace.pregnancyExtraPence,
+    };
+  }
+  if (chosen.clientId !== undefined) {
+    const client = clients.find((row) => row.id === chosen.clientId);
+    if (client === undefined) {
+      return null;
+    }
+    return {
+      hourRatePence: client.hourRatePence,
+      pregnancyExtraPence: client.pregnancyExtraPence,
+    };
+  }
+  return null;
+}
+
+function hourPreview(
+  parsedHours: { ok: true; minutes: number | undefined } | { ok: false; message: string },
+  rated: { hourRatePence: number; pregnancyExtraPence: number } | null,
+  massageType: string,
+): string {
+  if (!parsedHours.ok) {
+    return parsedHours.message;
+  }
+  if (parsedHours.minutes === undefined) {
+    return '';
+  }
+  if (rated === null || rated.hourRatePence < 1) {
+    return 'Set an hour rate on Workplace name.';
+  }
+  const rate = effectiveHourRatePence(rated.hourRatePence, rated.pregnancyExtraPence, massageType);
+  const base = basePenceFromMinutes(parsedHours.minutes, rate);
+  return `${hoursLabel(parsedHours.minutes)} × ${formatPounds(rate)} = ${formatPounds(base)}`;
+}
+
+function massageDraft(
+  massage: boolean,
+  massageType: string,
+  parsedHours: { ok: true; minutes: number | undefined } | { ok: false; message: string },
+  rated: { hourRatePence: number; pregnancyExtraPence: number } | null,
+  feePounds: string,
+  feePence: string,
+  bonusPounds: string,
+  bonusPence: string,
+): { basePence: number; additionalFeePence: number; bonusPence: number } | null {
+  if (!massage || !parsedHours.ok || parsedHours.minutes === undefined || parsedHours.minutes < 1) {
+    return null;
+  }
+  if (rated === null || rated.hourRatePence < 1) {
+    return null;
+  }
+  const fee = readOptionalAmount(feePounds, feePence);
+  const bonus = readOptionalAmount(bonusPounds, bonusPence);
+  return {
+    basePence: basePenceFromMinutes(
+      parsedHours.minutes,
+      effectiveHourRatePence(rated.hourRatePence, rated.pregnancyExtraPence, massageType),
+    ),
+    additionalFeePence: fee.ok ? (fee.amountPence ?? 0) : 0,
+    bonusPence: bonus.ok ? (bonus.amountPence ?? 0) : 0,
+  };
+}
+
+function bonusOnDate(items: readonly Transaction[], date: string): number {
+  let total = 0;
+  for (const item of items) {
+    if (item.type === 'income' && item.occurredOn === date) {
+      total += item.bonusPence ?? 0;
+    }
+  }
+  return total;
+}
+
+function shownSummary(
+  summary: DailyIncomeSummary,
+  items: readonly Transaction[],
+  draft: { basePence: number; additionalFeePence: number; bonusPence: number } | null,
+): DailyIncomeSummary {
+  const savedBonus = bonusOnDate(items, summary.date);
+  const draftBase = draft === null ? 0 : draft.basePence;
+  const draftFee = draft === null ? 0 : draft.additionalFeePence;
+  const draftBonus = draft === null ? 0 : draft.bonusPence;
+  return {
+    ...summary,
+    basePence: summary.basePence + draftBase,
+    additionalFeePence: summary.additionalFeePence + draftFee,
+    bonusPence: summary.bonusPence + savedBonus + draftBonus,
+    totalPence: summary.totalPence + savedBonus + draftBase + draftFee + draftBonus,
+  };
 }
 
 function chosenParty(value: string): { workplaceId?: number; clientId?: number } {

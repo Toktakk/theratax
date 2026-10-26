@@ -8,6 +8,8 @@ export interface WorkplaceResponse {
   id: number;
   name: string;
   kind: 'spa' | 'clinic';
+  hourRatePence: number;
+  pregnancyExtraPence: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +25,8 @@ interface WorkplaceRow {
   id: number;
   name: string;
   kind: 'spa' | 'clinic';
+  hourRatePence: number;
+  pregnancyExtraPence: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +36,8 @@ function toResponse(row: WorkplaceRow): WorkplaceResponse {
     id: row.id,
     name: row.name,
     kind: row.kind,
+    hourRatePence: row.hourRatePence,
+    pregnancyExtraPence: row.pregnancyExtraPence,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -61,6 +67,8 @@ export class WorkplacesService {
         userId: user.id,
         name,
         kind: input.kind,
+        hourRatePence: input.hourRatePence,
+        pregnancyExtraPence: input.pregnancyExtraPence ?? 0,
       },
     });
     return toResponse(created);

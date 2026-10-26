@@ -12,6 +12,7 @@ import {
   import type { UpdateTransactionDto } from './dto/update-transaction.dto.js';
 import { formatCivilDate, parseTaxYearDate, todayCivilDate } from './civil-date.js';
 import { mileageAmountPence } from './mileage-amount.js';
+import { basePenceFromMinutes, effectiveHourRatePence } from './massage-hour-rate.js';
 import type { MassageType } from './massage-type.js';
 import type { TransactionListResponse, TransactionResponse } from './transaction-response.js';
 
@@ -28,6 +29,8 @@ interface TransactionRow {
   customMassageType: string | null;
   basePence: number | null;
   additionalFeePence: number | null;
+  bonusPence: number | null;
+  minutes: number | null;
   workplaceId: number | null;
   clientId: number | null;
   createdAt: Date;
@@ -56,6 +59,12 @@ interface TransactionRow {
     }
     if (row.additionalFeePence !== null) {
       response.additionalFeePence = row.additionalFeePence;
+    }
+    if (row.bonusPence !== null) {
+      response.bonusPence = row.bonusPence;
+    }
+    if (row.minutes !== null) {
+      response.minutes = row.minutes;
     }
     if (row.workplaceId !== null) {
       response.workplaceId = row.workplaceId;
@@ -119,6 +128,10 @@ interface TransactionRow {
         customMassageType: input.customMassageType ?? null,
         basePence: input.basePence ?? null,
         additionalFeePence: input.additionalFeePence ?? null,
+        bonusPence: input.bonusPence ?? null,
+        minutes: input.minutes ?? null,
+        priceFromRate: input.minutes !== undefined,
+        baseProvided: input.basePence !== undefined,
         workplaceId: input.workplaceId ?? null,
         clientId: input.clientId ?? null,
         amountPence: input.amountPence ?? null,
@@ -144,6 +157,8 @@ interface TransactionRow {
           customMassageType: massage.customMassageType,
           basePence: massage.basePence,
           additionalFeePence: massage.additionalFeePence,
+          bonusPence: massage.bonusPence,
+          minutes: massage.minutes,
           workplaceId: massage.workplaceId,
           clientId: massage.clientId,
         },
@@ -168,6 +183,14 @@ interface TransactionRow {
         basePence: input.basePence !== undefined ? input.basePence : existing.basePence,
         additionalFeePence:
           input.additionalFeePence !== undefined ? input.additionalFeePence : existing.additionalFeePence,
+        bonusPence: input.bonusPence !== undefined ? input.bonusPence : existing.bonusPence,
+        minutes: input.minutes !== undefined ? input.minutes : existing.minutes,
+        priceFromRate:
+          input.minutes !== undefined ||
+          input.massageType !== undefined ||
+          input.workplaceId !== undefined ||
+          input.clientId !== undefined,
+        baseProvided: input.basePence !== undefined,
         workplaceId: input.workplaceId !== undefined ? input.workplaceId : existing.workplaceId,
         clientId: input.clientId !== undefined ? input.clientId : existing.clientId,
         amountPence: input.amountPence !== undefined ? input.amountPence : existing.amountPence,
@@ -192,6 +215,8 @@ interface TransactionRow {
           customMassageType: massage.customMassageType,
           basePence: massage.basePence,
           additionalFeePence: massage.additionalFeePence,
+          bonusPence: massage.bonusPence,
+          minutes: massage.minutes,
           workplaceId: massage.workplaceId,
           clientId: massage.clientId,
         },
@@ -236,6 +261,10 @@ interface TransactionRow {
         customMassageType: string | null;
         basePence: number | null;
         additionalFeePence: number | null;
+        bonusPence: number | null;
+        minutes: number | null;
+        priceFromRate: boolean;
+        baseProvided: boolean;
         workplaceId: number | null;
         clientId: number | null;
         amountPence: number | null;
@@ -246,6 +275,8 @@ interface TransactionRow {
       customMassageType: string | null;
       basePence: number | null;
       additionalFeePence: number | null;
+      bonusPence: number | null;
+      minutes: number | null;
       workplaceId: number | null;
       clientId: number | null;
       amountPence: number | null;
@@ -253,6 +284,12 @@ interface TransactionRow {
       if (type === 'expense') {
         if (fields.massageType !== null) {
           throw new BadRequestException('Massage type is only valid on income');
+        }
+        if (fields.minutes !== null) {
+          throw new BadRequestException('Minutes are only valid on massage income');
+        }
+        if (fields.bonusPence !== null) {
+          throw new BadRequestException('Bonus is only valid on massage income');
         }
         if (
           fields.basePence !== null ||
@@ -272,6 +309,8 @@ interface TransactionRow {
           customMassageType: null,
           basePence: null,
           additionalFeePence: null,
+          bonusPence: null,
+          minutes: null,
           workplaceId: null,
           clientId: null,
           amountPence: fields.amountPence,
@@ -280,23 +319,31 @@ interface TransactionRow {
       if (fields.workplaceId !== null && fields.clientId !== null) {
         throw new BadRequestException('Income refers to a workplace or a client, not both');
       }
-      if (fields.workplaceId !== null) {
-        const workplace = await this.prisma.workplace.findFirst({
-          where: { id: fields.workplaceId, userId },
-        });
-        if (workplace === null) {
-          throw new NotFoundException(`Workplace ${fields.workplaceId} not found`);
-        }
+      const workplace =
+        fields.workplaceId === null
+          ? null
+          : await this.prisma.workplace.findFirst({
+              where: { id: fields.workplaceId, userId },
+            });
+      if (fields.workplaceId !== null && workplace === null) {
+        throw new NotFoundException(`Workplace ${fields.workplaceId} not found`);
       }
-      if (fields.clientId !== null) {
-        const client = await this.prisma.client.findFirst({
-          where: { id: fields.clientId, userId },
-        });
-        if (client === null) {
-          throw new NotFoundException(`Client ${fields.clientId} not found`);
-        }
+      const client =
+        fields.clientId === null
+          ? null
+          : await this.prisma.client.findFirst({
+              where: { id: fields.clientId, userId },
+            });
+      if (fields.clientId !== null && client === null) {
+        throw new NotFoundException(`Client ${fields.clientId} not found`);
       }
       if (fields.massageType === null) {
+        if (fields.minutes !== null) {
+          throw new BadRequestException('Minutes are only valid on massage income');
+        }
+        if (fields.bonusPence !== null) {
+          throw new BadRequestException('Bonus is only valid on massage income');
+        }
         if (
           fields.basePence !== null ||
           fields.additionalFeePence !== null ||
@@ -309,15 +356,15 @@ interface TransactionRow {
           customMassageType: null,
           basePence: null,
           additionalFeePence: null,
+          bonusPence: null,
+          minutes: null,
           workplaceId: fields.workplaceId,
           clientId: fields.clientId,
           amountPence: fields.amountPence,
         };
       }
-      if (fields.basePence === null) {
-        throw new BadRequestException('Base amount is required');
-      }
       const additionalFeePence = fields.additionalFeePence ?? 0;
+      const bonusPence = fields.bonusPence ?? 0;
       if (fields.massageType === 'other') {
         if (fields.customMassageType === null) {
           throw new BadRequestException('Custom massage type is required');
@@ -325,18 +372,51 @@ interface TransactionRow {
       } else if (fields.customMassageType !== null) {
         throw new BadRequestException('Custom massage type is only valid for other');
       }
-      const amountPence = fields.basePence + additionalFeePence;
+      let basePence = fields.basePence;
+      if (fields.minutes !== null && fields.priceFromRate) {
+        if (fields.workplaceId === null && fields.clientId === null) {
+          throw new BadRequestException('A workplace or a client is required');
+        }
+        const rated = workplace ?? client;
+        if (rated === null || rated.hourRatePence < 1) {
+          throw new BadRequestException('Hour rate is required');
+        }
+        const computed = basePenceFromMinutes(
+          fields.minutes,
+          effectiveHourRatePence(rated.hourRatePence, rated.pregnancyExtraPence, fields.massageType),
+        );
+        if (computed < 1) {
+          throw new BadRequestException('Base amount is required');
+        }
+        if (computed > 100_000_000) {
+          throw new BadRequestException('Amount is above the maximum');
+        }
+        if (fields.baseProvided && fields.basePence !== computed) {
+          throw new BadRequestException('Base amount must equal hours times the hour rate');
+        }
+        basePence = computed;
+      }
+      if (basePence === null) {
+        throw new BadRequestException('Base amount is required');
+      }
+      const amountPence = basePence + additionalFeePence + bonusPence;
       if (amountPence > 100_000_000) {
         throw new BadRequestException('Amount is above the maximum');
       }
       if (fields.amountProvided && fields.amountPence !== amountPence) {
-        throw new BadRequestException('Amount must equal base plus additional fee');
+        throw new BadRequestException(
+          bonusPence > 0
+            ? 'Amount must equal base plus additional fee and bonus'
+            : 'Amount must equal base plus additional fee',
+        );
       }
       return {
         massageType: fields.massageType,
         customMassageType: fields.massageType === 'other' ? fields.customMassageType : null,
-        basePence: fields.basePence,
+        basePence,
         additionalFeePence,
+        bonusPence,
+        minutes: fields.minutes,
         workplaceId: fields.workplaceId,
         clientId: fields.clientId,
         amountPence,

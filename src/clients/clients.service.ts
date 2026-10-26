@@ -13,6 +13,8 @@ import type { UpdateClientDto } from './dto/update-client.dto.js';
 export interface ClientResponse {
   id: number;
   name: string;
+  hourRatePence: number;
+  pregnancyExtraPence: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +29,8 @@ export interface ClientListResponse {
 interface ClientRow {
   id: number;
   name: string;
+  hourRatePence: number;
+  pregnancyExtraPence: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +39,8 @@ function toResponse(row: ClientRow): ClientResponse {
   return {
     id: row.id,
     name: row.name,
+    hourRatePence: row.hourRatePence,
+    pregnancyExtraPence: row.pregnancyExtraPence,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -48,7 +54,12 @@ export class ClientsService {
     const name = this.readName(input.name);
     await this.requireUniqueName(user.id, name);
     const created = await this.prisma.client.create({
-      data: { userId: user.id, name },
+      data: {
+        userId: user.id,
+        name,
+        hourRatePence: input.hourRatePence,
+        pregnancyExtraPence: input.pregnancyExtraPence ?? 0,
+      },
     });
     return toResponse(created);
   }

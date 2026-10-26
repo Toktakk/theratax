@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { messageOf, request } from './api.ts';
 import { FormError } from './FormError.tsx';
+import { readAmountPence, readOptionalAmount } from './format.ts';
 import type { Client, Workplace, WorkplaceKind } from './types.ts';
 
 export function SaveWorkplaceForm({
@@ -12,6 +13,10 @@ export function SaveWorkplaceForm({
 }) {
   const [name, setName] = useState('');
   const [picked, setPicked] = useState<WorkplaceKind>(kind ?? 'spa');
+  const [hourPounds, setHourPounds] = useState('');
+  const [hourPence, setHourPence] = useState('');
+  const [extraPounds, setExtraPounds] = useState('');
+  const [extraPence, setExtraPence] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -22,14 +27,37 @@ export function SaveWorkplaceForm({
   }, [kind]);
 
   async function save() {
+    const hourRate = readAmountPence(hourPounds, hourPence);
+    if (!hourRate.ok) {
+      setError(hourRate.message);
+      return;
+    }
+    if (hourRate.amountPence < 1) {
+      setError('Enter an hour rate.');
+      return;
+    }
+    const extra = readOptionalAmount(extraPounds, extraPence);
+    if (!extra.ok) {
+      setError(extra.message);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
       const created = await request<Workplace>('/workplaces', {
         method: 'POST',
-        json: { name: name.trim(), kind: picked },
+        json: {
+          name: name.trim(),
+          kind: picked,
+          hourRatePence: hourRate.amountPence,
+          ...(extra.amountPence !== undefined ? { pregnancyExtraPence: extra.amountPence } : {}),
+        },
       });
       setName('');
+      setHourPounds('');
+      setHourPence('');
+      setExtraPounds('');
+      setExtraPence('');
       onCreated(created);
     } catch (caught: unknown) {
       setError(messageOf(caught));
@@ -59,6 +87,21 @@ export function SaveWorkplaceForm({
           }}
         />
       </label>
+      <MoneyFields
+        legend="Hour rate"
+        pounds={hourPounds}
+        pence={hourPence}
+        onPounds={setHourPounds}
+        onPence={setHourPence}
+      />
+      <MoneyFields
+        legend="Pregnancy extra per hour"
+        pounds={extraPounds}
+        pence={extraPence}
+        onPounds={setExtraPounds}
+        onPence={setExtraPence}
+        hint="Leave empty when pregnancy massage uses the same hourly rate."
+      />
       {kind === undefined ? (
         <label className="field">
           Kind
@@ -86,18 +129,44 @@ export function SaveWorkplaceForm({
 
 export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => void }) {
   const [name, setName] = useState('');
+  const [hourPounds, setHourPounds] = useState('');
+  const [hourPence, setHourPence] = useState('');
+  const [extraPounds, setExtraPounds] = useState('');
+  const [extraPence, setExtraPence] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function save() {
+    const hourRate = readAmountPence(hourPounds, hourPence);
+    if (!hourRate.ok) {
+      setError(hourRate.message);
+      return;
+    }
+    if (hourRate.amountPence < 1) {
+      setError('Enter an hour rate.');
+      return;
+    }
+    const extra = readOptionalAmount(extraPounds, extraPence);
+    if (!extra.ok) {
+      setError(extra.message);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
       const created = await request<Client>('/clients', {
         method: 'POST',
-        json: { name: name.trim() },
+        json: {
+          name: name.trim(),
+          hourRatePence: hourRate.amountPence,
+          ...(extra.amountPence !== undefined ? { pregnancyExtraPence: extra.amountPence } : {}),
+        },
       });
       setName('');
+      setHourPounds('');
+      setHourPence('');
+      setExtraPounds('');
+      setExtraPence('');
       onCreated(created);
     } catch (caught: unknown) {
       setError(messageOf(caught));
@@ -125,11 +194,72 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
           }}
         />
       </label>
+      <MoneyFields
+        legend="Hour rate"
+        pounds={hourPounds}
+        pence={hourPence}
+        onPounds={setHourPounds}
+        onPence={setHourPence}
+      />
+      <MoneyFields
+        legend="Pregnancy extra per hour"
+        pounds={extraPounds}
+        pence={extraPence}
+        onPounds={setExtraPounds}
+        onPence={setExtraPence}
+        hint="Leave empty when pregnancy massage uses the same hourly rate."
+      />
       <FormError message={error} />
       <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
         {saving ? 'Saving…' : 'Save client'}
       </button>
     </div>
+  );
+}
+
+function MoneyFields({
+  legend,
+  pounds,
+  pence,
+  onPounds,
+  onPence,
+  hint,
+}: {
+  legend: string;
+  pounds: string;
+  pence: string;
+  onPounds: (value: string) => void;
+  onPence: (value: string) => void;
+  hint?: string;
+}) {
+  return (
+    <fieldset>
+      <legend>{legend}</legend>
+      <div className="money-fields">
+        <label className="field">
+          Pounds
+          <input
+            inputMode="numeric"
+            value={pounds}
+            onChange={(event) => {
+              onPounds(event.target.value);
+            }}
+          />
+        </label>
+        <label className="field">
+          Pence
+          <input
+            inputMode="numeric"
+            maxLength={2}
+            value={pence}
+            onChange={(event) => {
+              onPence(event.target.value);
+            }}
+          />
+        </label>
+      </div>
+      {hint === undefined ? null : <span className="muted">{hint}</span>}
+    </fieldset>
   );
 }
 

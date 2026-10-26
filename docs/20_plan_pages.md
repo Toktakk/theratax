@@ -29,7 +29,7 @@ There is no income route. Workplace name is [24](24_page_directory.md) at `/work
 1. [Login](21_page_login.md). Email and password at `/`. Stores the bearer token and opens onboarding or the feed.
 2. [Register](22_page_register.md). Name, email, and password at `/register`. Same door as login after `201`.
 3. [Feed](23_page_feed.md). Log income or an expense, attach a photo when there is one, and show the daily income summary.
-4. [Workplace name](24_page_directory.md). Save a spa, a clinic, or a client name at `/workplaces`.
+4. [Workplace name](24_page_directory.md). Save a spa, a clinic, or a client, with an hour rate, at `/workplaces`.
 5. [Invoice](25_page_invoice.md). Bill a saved spa, clinic, or client for a day or a month, then download the PDF.
 6. [Onboarding](26_page_onboarding.md). One-time practice type and vehicle method. No route of its own.
 7. [Tax summary](27_page_tax_summary.md). Show `GET /tax/summary` for the signed-in user.
@@ -60,8 +60,8 @@ Civil dates are `DD-MM-YYYY`. A blank date on a create is today in `Europe/Londo
 ## Rules that cross pages
 
 - The feed lists Income before Expense wherever both appear together, including the type choice and the rows for one day.
-- Massage income is base plus the additional fee plus the bonus. The screen labels are Base Massage Income, Additional Massage Fee, and Bonus. The API fields are `basePence`, `additionalFeePence`, and `bonusPence`.
-- Bonus is an amount the user types for that income row. It is not hours, minutes, or a rate. Empty and £0 add nothing.
+- Massage income base is hours times the workplace or client hour rate. Pregnancy adds that row's pregnancy extra onto the hourly rate before the multiplication. The screen asks for Hours, Additional Massage Fee, and Bonus. The API stores `minutes` and the computed `basePence`, plus `additionalFeePence` and `bonusPence`.
+- Additional Massage Fee and Bonus are amounts the user types for that income row. Empty and £0 add nothing. The hour rate is not typed again on the feed.
 - The daily summary, the tax summary, and an invoice each include that bonus once. They do not add `amountPence` on top of the three parts, and they do not add the bonus again beside `amountPence`.
 - Massage Type includes Body Scrub (`body_scrub`). Other asks for a custom name.
 - A workplace or a client is saved once and reused by id. An income row does not create a second copy of the name.
@@ -74,7 +74,7 @@ Login, register, onboarding, the feed, invoices, and the tax summary exist as ba
 
 Massage fields, the workplace picker, the bonus, the daily summary, and recipient or period choice are specified in the page plans. They are not on the React pages yet. Build them when the matching API step is the one you have open. Do not add them during step 12.
 
-The source tree already contains workplaces, massage income, clients, the daily summary, and invoices from records. It also contains `src/hourly-bonuses` and an `HourlyBonus` model from the previous contract. That module is not the rule in these page plans. Do not extend it. `body_scrub` and `bonusPence` are not in the running source yet. This map does not change that code.
+The source tree already contains workplaces, massage income, clients, the daily summary, and invoices from records. It also contains `src/hourly-bonuses` and an `HourlyBonus` model from the previous contract. That module is not the rule in these page plans. Do not extend it. Hour rates live on the workplace and the client. Massage base is `minutes` times that rate. `body_scrub` is not in the server massage type list yet. Apply the schema change with `npx prisma migrate dev --name hour_rate`. This map does not run that command.
 
 ## What these files do not own
 

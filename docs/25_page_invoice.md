@@ -28,7 +28,7 @@ A baseline invoice with no lines still downloads the one-line PDF: name, number,
 
 The heading is Invoices. The form comes before the list.
 
-Recipient is three choices: Spa, Clinic, Client. Spa and Clinic then show workplaces of that kind from `GET /workplaces`. Client shows saved clients from `GET /clients`. The page reuses those rows. It does not invent a recipient name that is not the saved record. A new workplace or client is saved once on [Workplace name](24_page_directory.md), or through the create form on this page, and then selected. A duplicate name shows `Workplace already saved` or `Client already saved`.
+Recipient is three choices: Spa, Clinic, Client. Spa and Clinic then show workplaces of that kind from `GET /workplaces`. Client shows saved clients from `GET /clients`. The page reuses those rows. It does not invent a recipient name that is not the saved record. A new workplace or client is saved once on [Workplace name](24_page_directory.md), or through the create form on this page, and then selected. That shared form also asks for the hour rate and the optional pregnancy extra per hour. A duplicate name shows `Workplace already saved` or `Client already saved`. Invoice lines still use the stored `basePence` from each income row.
 
 Period is Daily or Monthly.
 
