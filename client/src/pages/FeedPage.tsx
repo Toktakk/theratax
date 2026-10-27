@@ -8,6 +8,7 @@ import {
   civilDateFromInput,
   effectiveHourRatePence,
   expenseMethodLabel,
+  formatHours,
   formatPounds,
   formatRateText,
   hoursLabel,
@@ -19,6 +20,7 @@ import {
   readHours,
   readOptionalAmount,
   readWholeNumber,
+  splitAmount,
 } from '../format.ts';
 import { suggestCategory } from '../hint.ts';
 import type {
@@ -54,6 +56,19 @@ interface EntryPayload {
   minutes?: number;
   workplaceId?: number;
   clientId?: number;
+}
+
+interface IncomePatch {
+  occurredOn: string;
+  note: string | null;
+  amountPence?: number;
+  massageType?: MassageType;
+  customMassageType?: string | null;
+  additionalFeePence?: number;
+  bonusPence?: number;
+  minutes?: number;
+  workplaceId?: number | null;
+  clientId?: number | null;
 }
 
 export function FeedPage({ user }: FeedPageProps) {
@@ -92,6 +107,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const [summaryError, setSummaryError] = useState('');
   const [photos, setPhotos] = useState<Record<number, string>>({});
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const [editingId, setEditingId] = useState<number | null>(null);
   const noteRef = useRef<HTMLInputElement>(null);
 
   const allowed =
@@ -671,18 +687,44 @@ export function FeedPage({ user }: FeedPageProps) {
         </p>
       ) : null}
       <div className="list">
-        {items.map((item) => (
-          <TransactionRow
-            key={item.id}
-            item={item}
-            categories={categories ?? []}
-            workplaces={workplaces}
-            clients={clients}
-            photoUrl={storedValue(photos, item.id)}
-            error={storedValue(rowErrors, item.id) ?? ''}
-            onFile={onFile}
-          />
-        ))}
+        {items.map((item) =>
+          editingId === item.id && item.type === 'income' ? (
+            <IncomeEditForm
+              key={item.id}
+              item={item}
+              workplaces={workplaces}
+              clients={clients}
+              workplacesLoading={workplacesLoading}
+              clientsLoading={clientsLoading}
+              directoryError={directoryError}
+              onCancel={() => {
+                setEditingId(null);
+              }}
+              onSaved={() => {
+                setEditingId(null);
+                setReloadKey((value) => value + 1);
+              }}
+            />
+          ) : (
+            <TransactionRow
+              key={item.id}
+              item={item}
+              categories={categories ?? []}
+              workplaces={workplaces}
+              clients={clients}
+              photoUrl={storedValue(photos, item.id)}
+              error={storedValue(rowErrors, item.id) ?? ''}
+              onFile={onFile}
+              onEdit={
+                item.type === 'income' && item.invoiceId === undefined
+                  ? () => {
+                      setEditingId(item.id);
+                    }
+                  : undefined
+              }
+            />
+          ),
+        )}
       </div>
     </div>
   );
@@ -797,6 +839,7 @@ function TransactionRow({
   photoUrl,
   error,
   onFile,
+  onEdit,
 }: {
   item: Transaction;
   categories: readonly ExpenseCategory[];
@@ -805,6 +848,7 @@ function TransactionRow({
   photoUrl: string | undefined;
   error: string;
   onFile: (transactionId: number, input: HTMLInputElement) => void;
+  onEdit: (() => void) | undefined;
 }) {
   const label = item.categorySlug === undefined ? null : categoryName(categories, item.categorySlug);
   const named = partyName(item, workplaces, clients);
@@ -840,7 +884,7 @@ function TransactionRow({
         ) : (
           <img className="receipt" src={photoUrl} alt="Receipt" />
         )
-      ) : (
+      ) : item.type === 'expense' ? (
         <label className="field">
           Attach a photo
           <input
@@ -851,10 +895,315 @@ function TransactionRow({
           />
           <span className="muted">JPEG, PNG, or WebP.</span>
         </label>
-      )}
+      ) : null}
       <FormError message={error} />
+      {onEdit === undefined ? null : (
+        <div className="actions">
+          <button className="button-ghost" type="button" onClick={onEdit}>
+            Edit
+          </button>
+        </div>
+      )}
     </article>
   );
+}
+
+function IncomeEditForm({
+  item,
+  workplaces,
+  clients,
+  workplacesLoading,
+  clientsLoading,
+  directoryError,
+  onCancel,
+  onSaved,
+}: {
+  item: Transaction;
+  workplaces: readonly Workplace[];
+  clients: readonly Client[];
+  workplacesLoading: boolean;
+  clientsLoading: boolean;
+  directoryError: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const massage = item.massageType !== undefined;
+  const initialFee = splitAmount(item.additionalFeePence ?? 0);
+  const initialBonus = splitAmount(item.bonusPence ?? 0);
+  const initialAmount = splitAmount(item.amountPence);
+  const [occurredOn, setOccurredOn] = useState(inputDateFromCivil(item.occurredOn));
+  const [note, setNote] = useState(item.note ?? '');
+  const [massageType, setMassageType] = useState<MassageType | ''>(item.massageType ?? '');
+  const [customMassageType, setCustomMassageType] = useState(item.customMassageType ?? '');
+  const [party, setParty] = useState(partyValue(item));
+  const [hours, setHours] = useState(item.minutes === undefined ? '' : formatHours(item.minutes));
+  const [feePounds, setFeePounds] = useState(initialFee.pounds);
+  const [feePence, setFeePence] = useState(initialFee.pence);
+  const [bonusPounds, setBonusPounds] = useState(initialBonus.pounds);
+  const [bonusPence, setBonusPence] = useState(initialBonus.pence);
+  const [pounds, setPounds] = useState(initialAmount.pounds);
+  const [pence, setPence] = useState(initialAmount.pence);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const parsedHours = readHours(hours);
+  const rated = massage ? rateOf(party, workplaces, clients) : null;
+  const hourHint = massage ? hourPreview(parsedHours, rated, massageType, customMassageType) : '';
+
+  async function save() {
+    setError('');
+    const date = civilDateFromInput(occurredOn);
+    if (date === undefined) {
+      setError('Enter a date.');
+      return;
+    }
+    const trimmedNote = note.trim();
+    const payload: IncomePatch = {
+      occurredOn: date,
+      note: trimmedNote === '' ? null : trimmedNote,
+    };
+    if (!massage) {
+      const money = readAmountPence(pounds, pence);
+      if (!money.ok) {
+        setError(money.message);
+        return;
+      }
+      if (money.amountPence < 1) {
+        setError('Amount is required');
+        return;
+      }
+      payload.amountPence = money.amountPence;
+    } else if (!isMassageType(massageType)) {
+      setError('Choose a massage type.');
+      return;
+    } else {
+      payload.massageType = massageType;
+      const chosen = chosenParty(party);
+      if (chosen.workplaceId !== undefined) {
+        payload.workplaceId = chosen.workplaceId;
+        payload.clientId = null;
+      } else if (chosen.clientId !== undefined) {
+        payload.clientId = chosen.clientId;
+        payload.workplaceId = null;
+      } else {
+        setError('Choose a workplace or a client.');
+        return;
+      }
+      if (massageType === 'other') {
+        const custom = customMassageType.trim();
+        if (custom === '') {
+          setError('Custom massage type is required');
+          return;
+        }
+        payload.customMassageType = custom;
+      } else {
+        payload.customMassageType = null;
+      }
+      if (rated === null || rated.hourRatePence < 1) {
+        setError('Set an hour rate on Workplace name.');
+        return;
+      }
+      if (!parsedHours.ok) {
+        setError(parsedHours.message);
+        return;
+      }
+      if (parsedHours.minutes === undefined || parsedHours.minutes < 1) {
+        setError('Enter hours.');
+        return;
+      }
+      payload.minutes = parsedHours.minutes;
+      const fee = readOptionalAmount(feePounds, feePence);
+      if (!fee.ok) {
+        setError(fee.message);
+        return;
+      }
+      payload.additionalFeePence = fee.amountPence ?? 0;
+      const bonus = readOptionalAmount(bonusPounds, bonusPence);
+      if (!bonus.ok) {
+        setError(bonus.message);
+        return;
+      }
+      payload.bonusPence = bonus.amountPence ?? 0;
+    }
+    setSaving(true);
+    try {
+      await request<Transaction>(`/transactions/${item.id}`, { method: 'PATCH', json: payload });
+      onSaved();
+    } catch (caught: unknown) {
+      setError(messageOf(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <article className="row income">
+      <form
+        className="stack"
+        autoComplete="off"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <label className="field">
+          Date
+          <input
+            type="date"
+            value={occurredOn}
+            onChange={(event) => {
+              setOccurredOn(event.target.value);
+            }}
+          />
+        </label>
+        {massage ? (
+          <>
+            <label className="field">
+              Massage Type
+              <select
+                value={massageType}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (isMassageType(value)) {
+                    setMassageType(value);
+                  }
+                }}
+              >
+                {MASSAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Workplace or client
+              <select
+                value={party}
+                onChange={(event) => {
+                  setParty(event.target.value);
+                }}
+              >
+                <option value="">Choose</option>
+                <optgroup label="Workplaces">
+                  {workplaces.map((workplace) => (
+                    <option key={`workplace-${workplace.id}`} value={`workplace:${workplace.id}`}>
+                      {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
+                      {formatRateText(workplace.hourRatePence, workplace.hourExtras)}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Clients">
+                  {clients.map((client) => (
+                    <option key={`client-${client.id}`} value={`client:${client.id}`}>
+                      {client.name} · {formatRateText(client.hourRatePence, client.hourExtras)}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            {workplacesLoading ? <p className="muted">Loading workplaces…</p> : null}
+            {clientsLoading ? <p className="muted">Loading clients…</p> : null}
+            <FormError message={directoryError} />
+            {massageType === 'other' ? (
+              <label className="field">
+                Massage type name
+                <input
+                  value={customMassageType}
+                  maxLength={100}
+                  onChange={(event) => {
+                    setCustomMassageType(event.target.value);
+                  }}
+                />
+              </label>
+            ) : null}
+            <label className="field">
+              Hours
+              <input
+                inputMode="decimal"
+                value={hours}
+                onChange={(event) => {
+                  setHours(event.target.value);
+                }}
+              />
+              <span className="muted">{hourHint}</span>
+            </label>
+            <MoneyPair
+              legend="Additional Massage Fee"
+              pounds={feePounds}
+              pence={feePence}
+              onPounds={setFeePounds}
+              onPence={setFeePence}
+              hint="Leave empty when nothing was received."
+            />
+            <MoneyPair
+              legend="Bonus"
+              pounds={bonusPounds}
+              pence={bonusPence}
+              onPounds={setBonusPounds}
+              onPence={setBonusPence}
+              hint="Leave empty when nothing was received."
+            />
+          </>
+        ) : (
+          <MoneyPair
+            legend="Amount"
+            pounds={pounds}
+            pence={pence}
+            onPounds={setPounds}
+            onPence={setPence}
+          />
+        )}
+        <label className="field">
+          Note
+          <input
+            value={note}
+            maxLength={500}
+            onChange={(event) => {
+              setNote(event.target.value);
+            }}
+          />
+        </label>
+        <FormError message={error} />
+        <div className="actions">
+          <button className="button-ghost" type="submit" disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button className="button-ghost" type="button" disabled={saving} onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </article>
+  );
+}
+
+function inputDateFromCivil(value: string): string {
+  const parts = value.split('-');
+  if (parts.length !== 3) {
+    return '';
+  }
+  const [day, month, year] = parts;
+  if (
+    day === undefined ||
+    month === undefined ||
+    year === undefined ||
+    !/^\d{2}$/.test(day) ||
+    !/^\d{2}$/.test(month) ||
+    !/^\d{4}$/.test(year)
+  ) {
+    return '';
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function partyValue(item: Transaction): string {
+  if (item.workplaceId !== undefined) {
+    return `workplace:${item.workplaceId}`;
+  }
+  if (item.clientId !== undefined) {
+    return `client:${item.clientId}`;
+  }
+  return '';
 }
 
 function partyName(
