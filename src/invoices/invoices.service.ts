@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { ownedByUser } from '../auth/owned-by-user.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { storedAddress } from '../postal-address/postal-address.js';
@@ -616,7 +617,7 @@ export class InvoicesService {
 
   private async findOwned(userId: number, id: number): Promise<InvoiceRow> {
     const row = await this.prisma.invoice.findFirst({
-      where: { id, userId },
+      where: ownedByUser(userId, id),
       include: { transaction: { select: { id: true } }, lines: true },
     });
     if (row === null) {

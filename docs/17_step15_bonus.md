@@ -122,7 +122,7 @@ A negative bonus gets `400` and `message` is an array. The expense gets `400` an
 
 Ada's `GET` by id gets `200` and `amountPence` `6700`. The other user gets `404` and the message `Transaction <id> not found`.
 
-`GET /tax/summary` is not given a second bonus add in this step. `incomePence` includes this row only through `amountPence`.
+`GET /tax/summary` is not given a second bonus add in this step. Once the invoice that bills this row is paid, `incomePence` includes the bonus through that bill's lines, once.
 
 ## If it fails
 

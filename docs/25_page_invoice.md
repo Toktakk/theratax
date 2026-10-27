@@ -28,7 +28,7 @@ A baseline invoice with no lines still downloads the one-line PDF: name, number,
 
 The heading is Invoices. The form comes before the list.
 
-Recipient is three choices: Spa, Clinic, Client. Spa and Clinic then show workplaces of that kind from `GET /workplaces`. Client shows saved clients from `GET /clients`. The page reuses those rows. It does not invent a recipient name that is not the saved record. A new workplace or client is saved once on [Workplace name](24_page_directory.md), or through the create form on this page, and then selected. That shared form also asks for the hour rate and the optional pregnancy extra per hour. A duplicate name shows `Workplace already saved` or `Client already saved`. Invoice lines still use the stored `basePence` from each income row.
+Recipient is three choices: Spa, Clinic, Client. Spa and Clinic then show workplaces of that kind from `GET /workplaces`. Client shows saved clients from `GET /clients`. The page reuses those rows. It does not invent a recipient name that is not the saved record. A new workplace or client is saved once on [Workplaces](24_page_directory.md), or through the create form on this page, and then selected. That shared form also asks for the hour rate and the optional pregnancy extra per hour. A duplicate name shows `Workplace already saved` or `Client already saved`. Invoice lines still use the stored `basePence` from each income row.
 
 Period is Daily or Monthly.
 
@@ -125,8 +125,8 @@ The page requires a bearer token and completed onboarding. Preview, create, pay,
 - The bonus line description is `Bonus`. The fee line description is `Additional Massage Fee`. The total equals the lines. The bonus is not in the total twice.
 - The same spa for May includes that day and excludes 1 June 2026. After create, a second preview of May no longer includes the billed lines.
 - `POST` returns `201`, status `issued`, a `TT-` number, and the spa's name as `recipientName`. `GET /transactions?type=income` has the same count as before create.
-- Pay returns `200` with `paidOn` and still does not add an income row. `incomePence` then includes that source `amountPence` once.
-- A later `PATCH` of the source base does not change the stored service line. The feed summary does change, because it reads the source.
+- Pay returns `200` with `paidOn` and still does not add an income row. `incomePence` then includes the invoiced line amounts once. At issue those lines equal the source `amountPence`.
+- A later `PATCH` of the source base does not change the stored service line or `incomePence`. The feed summary does change, because it reads the source.
 - A second `POST` for that spa and day is `400` `No records to invoice for this recipient and period`.
 - A clinic preview does not include the spa's rows or the spa's bonus.
 - A client row with a bonus previews a service line and a Bonus line. A client row with no bonus has no Bonus line.
@@ -136,4 +136,4 @@ The page requires a bearer token and completed onboarding. Preview, create, pay,
 
 ## Dependencies on other pages or shared components
 
-Depends on income from [`23_page_feed.md`](23_page_feed.md), on workplaces and clients from [`24_page_directory.md`](24_page_directory.md), on the business address from [`28_page_profile.md`](28_page_profile.md), on the menu in `App.tsx`, and on `api.ts`, `format.ts`, `FormError.tsx`, and `directory-forms.tsx`. The invoice total matches the feed summary for the same source rows. Paying the invoice includes that source `amountPence` in the tax summary once. It does not copy the total into a new income row. The tax page does not read this list.
+Depends on income from [`23_page_feed.md`](23_page_feed.md), on workplaces and clients from [`24_page_directory.md`](24_page_directory.md), on the business address from [`28_page_profile.md`](28_page_profile.md), on the menu in `App.tsx`, and on `api.ts`, `format.ts`, `FormError.tsx`, and `directory-forms.tsx`. The invoice total matches the feed summary for the same source rows at issue. Paying the invoice includes those line amounts in the tax summary once. A later edit of the source changes the feed and leaves the tax summary on the paid lines. It does not copy the total into a new income row. The tax page does not read this list.

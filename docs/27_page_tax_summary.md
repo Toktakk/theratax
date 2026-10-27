@@ -14,7 +14,7 @@ Open the page from the menu. The request runs when the page opens. Typing on the
 
 Go back to the feed or to invoices with the menu. Log out returns to login.
 
-Logging income on the feed does not move the numbers. An issued invoice does not move them. Marking that invoice paid includes each billed source row's `amountPence` once. A massage row's amount already includes the additional fee and the bonus.
+Logging income on the feed does not move the numbers. An issued invoice does not move them. Marking that invoice paid includes its line amounts once. Those lines equal the source amount at issue, including the additional fee and the bonus. A later edit or delete of the source does not move them.
 
 ## UI components and layout
 
@@ -44,17 +44,17 @@ There is no client validation. A `400` or `403` is shown as the server message.
 
 Do not multiply by 20, 40, 45, 6, or 2 on this page. Do not add `basePence`, `additionalFeePence`, or `bonusPence` beside `incomePence`.
 
-`incomePence` is already the sum of income `amountPence` for rows in the year that belong to a paid invoice. For a massage row that amount is base plus additional fee plus bonus, so the bonus is inside `incomePence` once. The page must not add it again. The handler must not add it again either, and it must not add the invoice total beside the source row.
+`incomePence` is already the sum of paid invoice line amounts in the year, plus a baseline paid invoice that has no lines. For a massage bill those lines are base, additional fee, and bonus, so the bonus is inside `incomePence` once. The page must not add it again. The handler must not add the live source amount when lines exist, and it must not add the invoice total beside the lines.
 
 `estimatedTaxOwedPence` is income tax plus Class 4. Class 2 is not inside it. A loss stays visible on `netProfitPence`. Tax uses `taxableProfitPence`, which is not negative.
 
-Invoice `amountPence` is not added. A step 17 invoice does not create an income row. Paying it raises this page by the source rows' `amountPence`, once. A step 11 income row that is linked to a paid invoice still counts through `amountPence`. Logged income with no paid invoice stays out.
+The invoice total is not added beside its lines. A step 17 invoice does not create an income row. Paying it raises this page by the stored line amounts, once. A step 11 income row linked to a paid invoice that has no lines still counts through that row's `amountPence`. Logged income with no paid invoice stays out. Editing or deleting a step 17 source leaves this page on the paid lines.
 
 ## Data models and API dependencies
 
 `GET /tax/summary` with the bearer token, only when this page opens. The body is the `TaxSummary` in [`api-spec.md`](api-spec.md): `taxYear`, `periodStart`, `periodEnd`, `expenseMethod`, the pence fields, `class2`, `assumptions`, and `disclaimer`.
 
-The pure function is `calculateTaxSummary`. The page never calls it. The handler loads the two sums and calls it.
+The pure function is `calculateTaxSummary`. The page never calls it. The handler loads the paid-invoice sums and the expense sum, then calls it.
 
 ## Loading, empty, success, and error states
 
@@ -73,7 +73,7 @@ The request requires a bearer token and a completed onboarding. Another user's r
 - The feed can log a row without waiting for this page to load. This page's request is absent from that Network tab.
 - Logging a massage row does not change `incomePence`. An unpaid invoice does not change it.
 - After that invoice is paid, a massage row of base `6000`, additional fee `200`, and bonus `500` raises `incomePence` by `6700`, not by `6200` and not by `7200`.
-- Deleting that paid source row lowers `incomePence` by `6700`.
+- Editing or deleting that paid source row leaves `incomePence` unchanged. The paid invoice lines still sum to `6700`.
 - `treatedAsPaid: false` shows `voluntaryWeeklyPence` and leaves `estimatedTaxOwedPence` unchanged by that weekly figure.
 - All six assumptions and the disclaimer match the response text.
 - A negative `netProfitPence` is shown as a loss, not hidden.

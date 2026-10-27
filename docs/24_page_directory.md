@@ -1,8 +1,8 @@
-# Workplace name page
+# Workplaces page
 
 Index: [Page plans](20_plan_pages.md). Saving a workplace is [step 13](15_step13_workplaces.md). Saving a client is [step 17](19_step17_invoices_from_records.md). The feed still chooses a saved name. It does not create one.
 
-`client/src/pages/DirectoryPage.tsx` is `/workplaces` after onboarding. The menu label is Workplace name.
+`client/src/pages/DirectoryPage.tsx` is `/workplaces` after onboarding. The menu label is Workplaces.
 
 ## Purpose and scope
 
@@ -12,7 +12,7 @@ The [feed](23_page_feed.md) only chooses a saved workplace or client. The [invoi
 
 ## User flows and navigation
 
-Open Workplace name from the menu after onboarding. On entry, load `GET /workplaces?limit=100` and `GET /clients?limit=100`.
+Open Workplaces from the menu after onboarding. On entry, load `GET /workplaces?limit=100` and `GET /clients?limit=100`.
 
 Saving a workplace is `POST /workplaces` with `{ name, kind, hourRatePence, hourExtras? }`. Saving a client is `POST /clients` with `{ name, hourRatePence, hourExtras? }`. Editing a workplace is `PATCH /workplaces/:id` with `{ name, hourRatePence, hourExtras }`. Editing a client is `PATCH /clients/:id` with `{ name, hourRatePence, hourExtras }`. Each button is disabled while its request is in flight. After a successful save the name, hour rate, and extras clear and the new row appears in that list, ordered by name, then id. A later press with the same name is a new request and gets `409`. After a successful edit the row shows the saved name and rate, in that same order. Cancel closes the editor and does not send a request.
 
@@ -20,7 +20,7 @@ The feed and the invoice page keep their own copies of these lists. Opening one 
 
 ## UI components and layout
 
-The heading is Workplace name. Two cards follow, Workplaces then Clients.
+The heading is Workplaces. Two cards follow, Workplaces then Clients.
 
 Each card shows a loading line while its request is in flight, then the saved rows in the order the list response sent them. A workplace row shows the name, Spa or Clinic, and the hour rate, for example `ร้าน เอ · Spa · £25.00/hour · pregnancy +£2.00/hour · body scrub +£5.00/hour · request +£2.00/hour`. A client row shows the name and the same rate text. An empty extra list leaves only the hour rate. Each row has Edit. An empty list says there is nothing saved yet. The save form sits under that list.
 
@@ -65,7 +65,7 @@ Lists and creates are limited to the token user. The page does not send `userId`
 
 ## Acceptance criteria and test scenarios
 
-- The menu after onboarding shows Workplace name between Feed and Invoices. The route is `/workplaces`.
+- The menu after onboarding shows Workplaces between Feed and Invoices. The route is `/workplaces`.
 - Saving `North Spa` as a spa at £25 per hour, with pregnancy +£2, request +£2, and body scrub +£5, returns `201`. The row shows `North Spa · Spa · £25.00/hour · pregnancy +£2.00/hour · body scrub +£5.00/hour · request +£2.00/hour`. The name, hour rate, and extras are empty again.
 - Edit changes that spa's name or hour rate, and the row shows the saved values. A duplicate name shows `Workplace already saved` and does not add a second row.
 - Saving `north spa` as a spa shows `Workplace already saved` and does not add a second row.

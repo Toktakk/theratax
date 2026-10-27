@@ -2,7 +2,7 @@
 
 Index: [Page plans](20_plan_pages.md). This is items 2 and 3 in [`01_user_flow.md`](01_user_flow.md). The baseline build check is [step 12](14_step12_react_pages.md). Massage fields are [step 14](16_step14_massage_income.md). The bonus is [step 15](17_step15_bonus.md). The daily summary is [step 16](18_step16_daily_income_summary.md). Workplaces are [step 13](15_step13_workplaces.md). A saved client on income is [step 17](19_step17_invoices_from_records.md).
 
-`client/src/pages/FeedPage.tsx` is `/` after onboarding. There is no separate income route. Saved spa, clinic, and client names are [Workplace name](24_page_directory.md).
+`client/src/pages/FeedPage.tsx` is `/` after onboarding. There is no separate income route. Saved spa, clinic, and client names are [Workplaces](24_page_directory.md).
 
 The file on disk today logs cash income or an expense and can attach a photo. The massage form, the workplace, the bonus, and the daily summary below are the target. Do not add them during step 12.
 
@@ -14,7 +14,7 @@ Income on this page may be cash (`amountPence` only) or a massage. A massage nam
 
 ## User flows and navigation
 
-After onboarding, `/` is this page. The menu also opens [Workplace name](24_page_directory.md), [invoices](25_page_invoice.md), and the [tax summary](27_page_tax_summary.md). Log out returns to [login](21_page_login.md).
+After onboarding, `/` is this page. The menu also opens [Workplaces](24_page_directory.md), [invoices](25_page_invoice.md), and the [tax summary](27_page_tax_summary.md). Log out returns to [login](21_page_login.md).
 
 On entry, load `GET /expense-categories` once and keep the result. Load `GET /transactions`. When the massage form is present, also load `GET /workplaces` and `GET /clients`. The summary loads with `GET /income/summary` for the selected civil date. Do not call `GET /tax/summary` from this page.
 
@@ -81,13 +81,13 @@ Massage Type options, in this order. The label is what the user sees. The value 
 
 Use these labels on the row, in the summary, and on an invoice line. Do not invent a second spelling.
 
-The workplace dropdown lists saved spas and clinics from `GET /workplaces`. Choosing one sends that id. This page does not create a workplace. A new spa or clinic is saved on [Workplace name](24_page_directory.md). Do not create a workplace for every income row. A spa and a clinic may share a display name.
+The workplace dropdown lists saved spas and clinics from `GET /workplaces`. Choosing one sends that id. This page does not create a workplace. A new spa or clinic is saved on [Workplaces](24_page_directory.md). Do not create a workplace for every income row. A spa and a clinic may share a display name.
 
 The client dropdown lists `GET /clients`. This page does not create a client. A new client is saved on that same page.
 
 Expense fields stay as they are in step 12. A category dropdown uses the categories the vehicle method allows, in the API's order. Flat-rate mileage asks for miles and does not ask for money. Other expenses ask for money. The hint updates as the note changes and does not call the server. `petrol` under flat rate suggests mileage. The same word under actual cost suggests vehicle costs. `train to clinic` or `uber` suggests Public transport. Parking and tolls stay a user choice of `other`.
 
-Hours use the selected workplace or client. An hour extra whose massage type matches the chosen type is added to `hourRatePence` before multiplying. `other` matches `customMassageType`, ignoring case. Two hours at £25, with pregnancy +£2, request +£2, and body scrub +£5, is £54 for Pregnancy, £54 for Request, £60 for Body Scrub, and £50 for Swedish. The line under Hours shows that product, for example `2 hours × £27.00 = £54.00`. No selection, or a rate of 0, does not multiply and tells the user to set an hour rate on Workplace name. The workplace or client choice shows those extras, for example `£25.00/hour · pregnancy +£2.00/hour · body scrub +£5.00/hour · request +£2.00/hour`.
+Hours use the selected workplace or client. An hour extra whose massage type matches the chosen type is added to `hourRatePence` before multiplying. `other` matches `customMassageType`, ignoring case. Two hours at £25, with pregnancy +£2, request +£2, and body scrub +£5, is £54 for Pregnancy, £54 for Request, £60 for Body Scrub, and £50 for Swedish. The line under Hours shows that product, for example `2 hours × £27.00 = £54.00`. No selection, or a rate of 0, does not multiply and tells the user to set an hour rate under Workplaces. The workplace or client choice shows those extras, for example `£25.00/hour · pregnancy +£2.00/hour · body scrub +£5.00/hour · request +£2.00/hour`.
 
 Additional Massage Fee and Bonus use GBP. The screen shows £. Different rows can hold different amounts. Leave the field empty when nothing was received. Empty is omitted or sent as `0`. Both mean no increase.
 

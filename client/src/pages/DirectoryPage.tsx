@@ -70,7 +70,7 @@ export function DirectoryPage() {
 
   return (
     <div className="stack">
-      <h2>Workplace name</h2>
+      <h2>Workplaces</h2>
       <section className="card stack">
         <h3>Workplaces</h3>
         {workplacesLoading ? <p className="muted">Loading workplaces…</p> : null}

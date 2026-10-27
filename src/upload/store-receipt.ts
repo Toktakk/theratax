@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { ownedByUser } from '../auth/owned-by-user.js';
 import { detectReceiptImage } from './image-type.js';
 import type { ReceiptImageType } from './image-type.js';
 import {
@@ -46,7 +47,7 @@ export function ownedTransactionWhere(
   id: number;
   userId: number;
 } {
-  return { id, userId };
+  return ownedByUser(userId, id);
 }
 
 export function receiptWrite(input: ReceiptWrite): {

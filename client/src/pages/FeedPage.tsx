@@ -356,7 +356,7 @@ export function FeedPage({ user }: FeedPageProps) {
       }
       const rated = rateOf(party, workplaces, clients);
       if (rated === null || rated.hourRatePence < 1) {
-        setFormError('Set an hour rate on Workplace name.');
+        setFormError('Set an hour rate under Workplaces.');
         return;
       }
       const parsedHours = readHours(hours);
@@ -1002,7 +1002,7 @@ function IncomeEditForm({
         payload.customMassageType = null;
       }
       if (rated === null || rated.hourRatePence < 1) {
-        setError('Set an hour rate on Workplace name.');
+        setError('Set an hour rate under Workplaces.');
         return;
       }
       if (!parsedHours.ok) {
@@ -1269,7 +1269,7 @@ function hourPreview(
     return '';
   }
   if (rated === null || rated.hourRatePence < 1) {
-    return 'Set an hour rate on Workplace name.';
+    return 'Set an hour rate under Workplaces.';
   }
   const rate = effectiveHourRatePence(
     rated.hourRatePence,

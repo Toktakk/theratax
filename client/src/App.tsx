@@ -164,7 +164,7 @@ function Shell({
             Feed
           </NavLink>
           <NavLink to="/workplaces" className={navClass}>
-            Workplace name
+            Workplaces
           </NavLink>
           <NavLink to="/invoices" className={navClass}>
             Invoices

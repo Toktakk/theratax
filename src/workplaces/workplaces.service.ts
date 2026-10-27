@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ownedByUser } from '../auth/owned-by-user.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
@@ -187,7 +188,7 @@ export class WorkplacesService {
 
   private async findOwned(userId: number, id: number): Promise<WorkplaceRow> {
     const row = await this.prisma.workplace.findFirst({
-      where: { id, userId },
+      where: ownedByUser(userId, id),
       include: includeExtras,
     });
     if (row === null) {

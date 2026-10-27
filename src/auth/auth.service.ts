@@ -25,6 +25,16 @@ interface UserRow {
   postcode: string | null;
 }
 
+export function readSessionUser(
+  session: { expiresAt: Date; user: UserRow } | null,
+  nowMs: number,
+): PublicUser | null {
+  if (session === null || session.expiresAt.getTime() <= nowMs) {
+    return null;
+  }
+  return toPublicUser(session.user);
+}
+
 function toPublicUser(user: UserRow): PublicUser {
   return {
     id: user.id,
@@ -78,10 +88,7 @@ export class AuthService {
       where: { token },
       include: { user: true },
     });
-    if (session === null || session.expiresAt.getTime() <= Date.now()) {
-      return null;
-    }
-    return toPublicUser(session.user);
+    return readSessionUser(session, Date.now());
   }
 
   async completeOnboarding(userId: number, input: OnboardingDto): Promise<PublicUser> {

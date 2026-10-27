@@ -26,12 +26,12 @@ flowchart TD
   tax --> profile
 ```
 
-There is no income route. Workplace name is [24](24_page_directory.md) at `/workplaces`, so the invoice plan stays 25. Choosing a workplace, massage income, the bonus, and the daily summary are parts of the feed. Saving a workplace or a client name is the Workplace name page. The invoice page can still save a name while issuing a bill. Recipient and period choice are parts of the invoice page.
+There is no income route. Workplaces is [24](24_page_directory.md) at `/workplaces`, so the invoice plan stays 25. Choosing a workplace, massage income, the bonus, and the daily summary are parts of the feed. Saving a workplace or a client name is the Workplaces page. The invoice page can still save a name while issuing a bill. Recipient and period choice are parts of the invoice page.
 
 1. [Login](21_page_login.md). Email and password at `/`. Stores the bearer token and opens onboarding or the feed.
 2. [Register](22_page_register.md). Name, email, and password at `/register`. Same door as login after `201`.
 3. [Feed](23_page_feed.md). Log income or an expense, attach a photo when there is one, and show the daily income summary.
-4. [Workplace name](24_page_directory.md). Save a spa, a clinic, or a client, with an hour rate, at `/workplaces`.
+4. [Workplaces](24_page_directory.md). Save a spa, a clinic, or a client, with an hour rate, at `/workplaces`.
 5. [Invoice](25_page_invoice.md). Bill a saved spa, clinic, or client for a day or a month, then download the PDF.
 6. [Onboarding](26_page_onboarding.md). One-time practice type and vehicle method. No route of its own.
 7. [Tax summary](27_page_tax_summary.md). Show `GET /tax/summary` for the signed-in user.
@@ -41,7 +41,7 @@ There is no income route. Workplace name is [24](24_page_directory.md) at `/work
 
 A visitor with no token sees login. Register is a link, not a second form on the login page. After register or login the client stores `accessToken` and calls `GET /users/me`.
 
-If `onboardedAt` is `null`, the only screen is onboarding. The feed, workplace names, invoices, the tax summary, and the profile are not in the menu yet. After onboarding, the feed is `/`. Workplace name is `/workplaces`. Invoices are `/invoices`. The tax summary is `/tax`. The profile is `/profile`. Log out clears the token and returns to `/`.
+If `onboardedAt` is `null`, the only screen is onboarding. The feed, workplaces, invoices, the tax summary, and the profile are not in the menu yet. After onboarding, the feed is `/`. Workplaces is `/workplaces`. Invoices are `/invoices`. The tax summary is `/tax`. The profile is `/profile`. Log out clears the token and returns to `/`.
 
 A `401` while a token is stored deletes the token and returns to login. That is an expired or unknown session. It is not the same message as a wrong password.
 
@@ -53,8 +53,8 @@ These files serve more than one page. A page plan names the ones it uses.
 - `client/src/format.ts` turns pence into pounds, reads whole pounds and pence from 0 to 99 as an integer, and turns a date input into `DD-MM-YYYY`.
 - `client/src/FormError.tsx` shows the text from a failed request.
 - `client/src/hint.ts` and `client/src/category-filter.ts` suggest an expense category in the browser. There is no hint endpoint.
-- `client/src/App.tsx` holds the session and the menu. Login and register are the only routes while signed out. Onboarding replaces the menu. The menu after onboarding is Feed, Workplace name, Invoices, Tax summary, and Profile.
-- `client/src/directory-forms.tsx` saves a workplace or a client. Workplace name and the invoice page both use it. The feed does not.
+- `client/src/App.tsx` holds the session and the menu. Login and register are the only routes while signed out. Onboarding replaces the menu. The menu after onboarding is Feed, Workplaces, Invoices, Tax summary, and Profile.
+- `client/src/directory-forms.tsx` saves a workplace or a client. Workplaces and the invoice page both use it. The feed does not.
 
 Money on the screen is pounds. The API stores integer pence. £20 is `2000`. Two fields, whole pounds and pence from 0 to 99, become pence by integer arithmetic. Do not use `Number("65.10") * 100`.
 

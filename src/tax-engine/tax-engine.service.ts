@@ -5,10 +5,14 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { todayCivilDate } from '../transactions/civil-date.js';
 import { calculateTaxSummary, type TaxSummary } from './calculate-tax.js';
 import type { TaxSummaryQueryDto } from './dto/tax-summary-query.dto.js';
+import {
+  allowableExpenseWhere,
+  baselinePaidIncomeWhere,
+  paidIncomePence,
+  paidLineIncomeWhere,
+} from './paid-income.js';
 
 const SUPPORTED_TAX_YEAR = 2026;
-const PERIOD_START = new Date(Date.UTC(2026, 3, 6));
-const PERIOD_END = new Date(Date.UTC(2027, 3, 5));
 
 function taxYearContaining(now: Date): number {
   const [dayText, monthText, yearText] = todayCivilDate(now).split('-');
@@ -31,30 +35,22 @@ export class TaxEngineService {
     if (taxYear !== SUPPORTED_TAX_YEAR) {
       throw new BadRequestException('Only the 2026-27 tax year is supported');
     }
-    const [income, expenses] = await Promise.all([
-      this.prisma.transaction.aggregate({
-        where: {
-          userId: user.id,
-          type: 'income',
-          occurredOn: { gte: PERIOD_START, lte: PERIOD_END },
-          OR: [
-            { invoice: { status: 'paid' } },
-            { invoiceLines: { some: { invoice: { status: 'paid' } } } },
-          ],
-        },
+    const [lines, baseline, expenses] = await Promise.all([
+      this.prisma.invoiceLine.aggregate({
+        where: paidLineIncomeWhere(user.id),
         _sum: { amountPence: true },
       }),
       this.prisma.transaction.aggregate({
-        where: {
-          userId: user.id,
-          type: 'expense',
-          occurredOn: { gte: PERIOD_START, lte: PERIOD_END },
-        },
+        where: baselinePaidIncomeWhere(user.id),
+        _sum: { amountPence: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: allowableExpenseWhere(user.id),
         _sum: { amountPence: true },
       }),
     ]);
     return calculateTaxSummary({
-      incomePence: income._sum.amountPence ?? 0,
+      incomePence: paidIncomePence(lines._sum.amountPence, baseline._sum.amountPence),
       allowableExpensesPence: expenses._sum.amountPence ?? 0,
       expenseMethod: user.expenseMethod,
     });

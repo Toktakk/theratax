@@ -60,7 +60,7 @@ The top-level bonus counts each row once. Adding a workplace total to a massage-
 
 An empty day is `200`. Every pence field is `0`. Both arrays are empty.
 
-In `src/tax-engine/tax-engine.service.ts`, `incomePence` stays the sum of income `amountPence` for the tax year. Do not add `bonusPence` on top. Do not add `basePence`. Do not add invoice amounts. Do not put `20`, `6`, or the disclaimer in the controller. A massage row of `6700` raises `incomePence` by `6700`, once. [Step 9](11_step09_tax_summary.md) still matches for a user whose income has no separate bonus column to add.
+In `src/tax-engine/tax-engine.service.ts`, `incomePence` is the paid invoice lines for the tax year, plus a baseline paid invoice that has no lines. Do not add `bonusPence` on top. Do not add the live source `amountPence` when those lines exist. Do not add the invoice total beside the lines. Do not put `20`, `6`, or the disclaimer in the controller. A paid massage bill of `6700` raises `incomePence` by `6700`, once. Editing or deleting that source afterwards does not change it.
 
 Bearer and onboarding match step 13.
 
@@ -73,7 +73,7 @@ Bearer and onboarding match step 13.
 - `src/income-summary/income-summary.controller.ts`
 - `src/income-summary/income-summary.module.ts`
 - `src/app.module.ts` adds `IncomeSummaryModule`
-- `src/tax-engine/tax-engine.service.ts` sums `amountPence` only
+- `src/tax-engine/tax-engine.service.ts` sums paid invoice lines, and baseline invoices that have no lines
 
 The query DTO uses optional `date` with `Matches(/^\d{2}-\d{2}-\d{4}$/)`.
 
@@ -85,7 +85,7 @@ The unit test must fail if the function adds `amountPence` on top of the three p
 npm test
 ```
 
-The £20,000 check from step 9 still applies to a user whose only income is `2_000_000` pence and who has no expenses: `estimatedTaxOwedPence` is `193180`. Read `GET /tax/summary` before this massage row exists when you can. If the step 15 row is already stored, the later delete is the check: `incomePence` falls by `6700`.
+The £20,000 check from step 9 still applies to a user whose only income is `2_000_000` pence and who has no expenses: `estimatedTaxOwedPence` is `193180`. Read `GET /tax/summary` before this massage row is on a paid invoice when you can. Deleting the source after that invoice is paid does not change `incomePence`.
 
 As Ada, on `01-05-2026`, you need one Swedish income at one workplace: `basePence` `6000`, `additionalFeePence` `200`, `bonusPence` `500`. Reuse the step 15 row if it is still there. Move or delete any other income on that date, so the top-level total is exactly `6700`.
 
@@ -115,7 +115,7 @@ An invoice does not change those four numbers.
 
 After the income is deleted, base, fee, bonus, and total are `0`. The bonus does not remain behind on its own.
 
-While the row exists, `incomePence` on the tax summary is `6700` higher than it was before that row. It is not `7200` higher and not `6200` higher. After the row is deleted, `incomePence` returns to the remembered value. A user with £20,000 and no other income still has `estimatedTaxOwedPence` `193180`.
+While a paid invoice bills that row, `incomePence` on the tax summary is `6700` higher than it was before payment. It is not `7200` higher and not `6200` higher. After the source row is deleted, `incomePence` stays at that higher value because the paid lines remain. A user with £20,000 and no other income still has `estimatedTaxOwedPence` `193180`.
 
 `01-01-2026` gets `200` and zeros, if Ada has nothing on that day. `01-04-2026` gets `400` and the message `Date is outside the 2026-27 tax year`.
 

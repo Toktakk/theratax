@@ -5,6 +5,7 @@ import {
     NotFoundException,
     ConflictException,
   } from '@nestjs/common';
+  import { ownedByUser } from '../auth/owned-by-user.js';
   import { PrismaService } from '../prisma/prisma.service.js';
   import type { PublicUser } from '../auth/public-user.js';
   import type { CreateTransactionDto } from './dto/create-transaction.dto.js';
@@ -491,7 +492,7 @@ interface TransactionRow {
   
     private async findOwned(userId: number, id: number): Promise<TransactionRow> {
       const row = await this.prisma.transaction.findFirst({
-        where: { id, userId },
+        where: ownedByUser(userId, id),
         include: { receipt: true },
       });
       if (row === null) {

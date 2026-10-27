@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { ownedByUser } from '../auth/owned-by-user.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
 import type { HourExtraResponse, StoredHourExtra } from '../hour-extras/hour-extra.js';
@@ -204,7 +205,7 @@ export class ClientsService {
 
   private async findOwned(userId: number, id: number): Promise<ClientRow> {
     const row = await this.prisma.client.findFirst({
-      where: { id, userId },
+      where: ownedByUser(userId, id),
       include: includeExtras,
     });
     if (row === null) {
