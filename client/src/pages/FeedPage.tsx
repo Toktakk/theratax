@@ -117,6 +117,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const selected = allowed.find((category) => category.slug === categorySlug);
   const mileage = type === 'expense' && selected?.kind === 'mileage';
   const massage = type === 'income' && massageType !== 'cash';
+  const visibleItems = items.filter((item) => item.type === type);
   const receiptKey = items
     .filter((item) => item.hasReceipt)
     .map((item) => item.id)
@@ -479,6 +480,7 @@ export function FeedPage({ user }: FeedPageProps) {
                   checked={type === 'expense'}
                   onChange={() => {
                     setType('expense');
+                    setEditingId(null);
                   }}
                 />
                 Expense
@@ -678,7 +680,7 @@ export function FeedPage({ user }: FeedPageProps) {
       </section>
       <FormError message={listError} />
       {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}
-      {!listLoading && listError === '' && items.length === 0 ? (
+      {!listLoading && listError === '' && visibleItems.length === 0 ? (
         <p className="muted">Nothing logged yet.</p>
       ) : null}
       {total > items.length ? (
@@ -687,7 +689,7 @@ export function FeedPage({ user }: FeedPageProps) {
         </p>
       ) : null}
       <div className="list">
-        {items.map((item) =>
+        {visibleItems.map((item) =>
           editingId === item.id && item.type === 'income' ? (
             <IncomeEditForm
               key={item.id}
