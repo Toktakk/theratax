@@ -6,6 +6,7 @@ import { DirectoryPage } from './pages/DirectoryPage.tsx';
 import { FeedPage } from './pages/FeedPage.tsx';
 import { InvoicePage } from './pages/InvoicePage.tsx';
 import { OnboardingPage } from './pages/OnboardingPage.tsx';
+import { ProfilePage } from './pages/ProfilePage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
 import { TaxSummaryPage } from './pages/TaxSummaryPage.tsx';
@@ -121,6 +122,20 @@ export default function App() {
             }
           />
           <Route path="/tax" element={<TaxSummaryPage />} />
+          <Route
+            path="/profile"
+            element={
+              <ProfilePage
+                user={session.user}
+                onUserUpdated={(user) => {
+                  const ready = asReadyUser(user);
+                  if (ready !== null) {
+                    setSession({ status: 'ready', user: ready });
+                  }
+                }}
+              />
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Shell>
@@ -156,6 +171,9 @@ function Shell({
           </NavLink>
           <NavLink to="/tax" className={navClass}>
             Tax summary
+          </NavLink>
+          <NavLink to="/profile" className={navClass}>
+            Profile
           </NavLink>
         </nav>
         <button className="button-ghost" type="button" onClick={onLogout}>

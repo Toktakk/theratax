@@ -4,13 +4,13 @@ Index: [Page plans](20_plan_pages.md). This is item 1 in [`01_user_flow.md`](01_
 
 ## Purpose and scope
 
-`client/src/pages/OnboardingPage.tsx` runs once, after register or login, while `onboardedAt` is `null`. It records how the therapist works and how vehicle costs are claimed.
+`client/src/pages/OnboardingPage.tsx` runs once, after register or login, while `onboardedAt` is `null`. It records how the therapist works, how vehicle costs are claimed, and the first business address. That address can be corrected later on the [profile page](28_page_profile.md).
 
 It has no URL of its own. While it is showing, the feed, invoices, and the tax summary are not reachable. It does not log income, create a workplace, or change the method later.
 
 ## User flows and navigation
 
-App open with a token calls `GET /users/me`. A null `onboardedAt` shows this page and nothing else. Submit calls `PATCH /users/me/onboarding` once. On success `onboardedAt` is an ISO 8601 string, and the app opens the [feed](23_page_feed.md).
+App open with a token calls `GET /users/me`. A null `onboardedAt` shows this page and nothing else. Submit saves the business address with `PATCH /users/me/address`, then calls `PATCH /users/me/onboarding` once. On success `onboardedAt` is an ISO 8601 string, and the app opens the [feed](23_page_feed.md). A later correction of that address is the [profile page](28_page_profile.md).
 
 Refresh after success stays on the feed. A user who already onboarded must not see this form again.
 
@@ -20,7 +20,7 @@ A second PATCH, including one made from developer tools, gets `409` `Onboarding 
 
 ## UI components and layout
 
-The header shows TheraTax, the user's name, and Log out. The form asks two questions.
+The header shows TheraTax, the user's name, and Log out. The form asks two questions, then the business address. That address is corrected later on the [profile page](28_page_profile.md).
 
 Practice:
 
@@ -91,4 +91,4 @@ The route requires the bearer token from login or register. A missing token is `
 
 ## Dependencies on other pages or shared components
 
-Depends on [`21_page_login.md`](21_page_login.md) and [`22_page_register.md`](22_page_register.md) for the token, on [`23_page_feed.md`](23_page_feed.md) for the next screen, and on `api.ts`, `FormError.tsx`, and `asReadyUser` in `types.ts`. The feed's category filter reads `expenseMethod` from the user this page saved.
+Depends on [`21_page_login.md`](21_page_login.md) and [`22_page_register.md`](22_page_register.md) for the token, on [`23_page_feed.md`](23_page_feed.md) for the next screen, on [`28_page_profile.md`](28_page_profile.md) for a later address correction, and on `api.ts`, `FormError.tsx`, and `asReadyUser` in `types.ts`. The feed's category filter reads `expenseMethod` from the user this page saved.

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { AddressFields } from '../address-fields.tsx';
 import {
   addressError,
@@ -299,7 +300,12 @@ export function InvoicePage({
       <h2>Invoices</h2>
       <form className="card stack" onSubmit={onSubmit}>
         {hasAddress(user) ? (
-          <p className="muted">Business address: {formatAddress(user)}</p>
+          <p className="muted">
+            Business address: {formatAddress(user)}{' '}
+            <Link className="switch-link" to="/profile">
+              Edit address
+            </Link>
+          </p>
         ) : (
           <BusinessAddressForm onSaved={onUserUpdated} />
         )}

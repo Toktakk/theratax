@@ -122,10 +122,11 @@ The target user is a sole trader. Legal form is not a field. `practiceType` is t
 
 ```json
 { "message": "Onboarding already completed", "error": "Conflict", "statusCode": 409 }
+```
 
 ## Business address
 
-`PATCH /users/me/address` stores the sole trader's address used on invoices. It can be called before or after onboarding, and it can be called again to correct a mistake. Onboarding itself stays one-time.
+`PATCH /users/me/address` stores the sole trader's address used on invoices. It can be called before or after onboarding, and it can be called again to correct a mistake. The [profile page](28_page_profile.md) is the screen that calls it again after onboarding. Onboarding itself stays one-time. The request and response shapes stay as written here.
 
 ```ts
 interface PostalAddress {
@@ -139,7 +140,6 @@ interface PostalAddress {
 `200` returns the `User`. The four address fields are omitted until an address is saved. A blank line or town is `400` `"Address is required"`. A postcode that is not a UK postcode is `400` `"Enter a UK postcode"`.
 
 Issuing an invoice copies this address onto the invoice. A later change does not rewrite an invoice that was already issued.
-```
 
 `flat_rate` rates for 2026–27, car or van: **55p** per mile for the first 10,000 business miles in the tax year, **25p** after that. Motorcycle rates are out of scope.
 
