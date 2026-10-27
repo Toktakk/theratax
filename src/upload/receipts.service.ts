@@ -71,7 +71,12 @@ export class ReceiptsService {
     if (transaction.receipt === null) {
       return { receipt: null };
     }
-    return { receipt: { storageKey: transaction.receipt.storageKey } };
+    return {
+      receipt: {
+        storageKey: transaction.receipt.storageKey,
+        contentType: transaction.receipt.contentType,
+      },
+    };
   }
 
   private async saveReceipt(input: ReceiptWrite): Promise<Receipt> {

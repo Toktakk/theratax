@@ -74,7 +74,7 @@ describe('ReceiptsService', () => {
   it('opens a stored receipt for this user', async () => {
     const { prisma, db } = prismaDouble();
     db.transaction.findFirst.mockResolvedValue({
-      receipt: { storageKey: 'receipts/4/9' },
+      receipt: { storageKey: 'receipts/4/9', contentType: 'image/png' },
     });
     const upload = uploadDouble();
     const service = new ReceiptsService(prisma, asDependency<UploadService>(upload));
@@ -82,6 +82,7 @@ describe('ReceiptsService', () => {
     const link = await service.link(user, 9);
 
     expect(link.url).toBe('https://files.example/receipt');
+    expect(link.contentType).toBe('image/png');
     expect(db.transaction.findFirst).toHaveBeenCalledWith({
       where: { id: 9, userId: 4 },
       include: { receipt: true },
@@ -92,7 +93,7 @@ describe('ReceiptsService', () => {
   it('deletes the object and then the receipt row', async () => {
     const { prisma, db } = prismaDouble();
     db.transaction.findFirst.mockResolvedValue({
-      receipt: { storageKey: 'receipts/4/9' },
+      receipt: { storageKey: 'receipts/4/9', contentType: 'image/png' },
     });
     db.receipt.delete.mockResolvedValue({});
     const upload = uploadDouble();

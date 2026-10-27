@@ -81,11 +81,26 @@ describe('receipt upload', () => {
     expect(deps.deleteObject).not.toHaveBeenCalled();
   });
 
+  it('stores a PDF from its bytes and ignores the supplied type', async () => {
+    const deps = fakeDeps();
+    const bytes = Buffer.from('%PDF-1.4\n%%EOF\n');
+    const file = imageFile('application/octet-stream', 'slip.pdf', bytes);
+
+    const saved = await storeReceipt(deps.deps, USER_ID, TX_ID, file);
+
+    expect(saved.contentType).toBe('application/pdf');
+    expect(deps.putObject).toHaveBeenCalledWith(
+      receiptStorageKey(USER_ID, TX_ID, FIRST_ID),
+      file.buffer,
+      'application/pdf',
+    );
+  });
+
   it('replaces the previous photo without adding a second row', async () => {
     const deps = fakeDeps();
     const previous = receiptStorageKey(USER_ID, TX_ID, FIRST_ID);
     deps.findTransaction.mockResolvedValueOnce({
-      receipt: { storageKey: previous },
+      receipt: { storageKey: previous, contentType: 'image/png' },
     });
     deps.newObjectId.mockReturnValueOnce(SECOND_ID);
 
@@ -167,7 +182,7 @@ describe('receipt upload', () => {
     const deps = fakeDeps();
     const previous = 'receipts/4/9';
     deps.findTransaction.mockResolvedValue({
-      receipt: { storageKey: previous },
+      receipt: { storageKey: previous, contentType: 'image/png' },
     });
     deps.saveReceipt.mockRejectedValue(new Error('database'));
 
@@ -210,7 +225,7 @@ describe('receipt upload', () => {
     const deps = fakeDeps();
     const previous = receiptStorageKey(USER_ID, TX_ID, SECOND_ID);
     deps.findTransaction.mockResolvedValue({
-      receipt: { storageKey: previous },
+      receipt: { storageKey: previous, contentType: 'image/png' },
     });
     deps.deleteObject.mockRejectedValue(new Error('storage'));
 
@@ -228,7 +243,7 @@ describe('receipt upload', () => {
   it('opens an authorized receipt and rejects a missing or unsafe key', async () => {
     const deps = fakeDeps();
     deps.findTransaction.mockResolvedValue({
-      receipt: { storageKey: 'receipts/4/9' },
+      receipt: { storageKey: 'receipts/4/9', contentType: 'image/png' },
     });
     deps.signedReadUrl.mockResolvedValue({
       url: 'http://localhost:9000/receipts/receipts/4/9?X-Amz-Expires=900',
@@ -238,6 +253,7 @@ describe('receipt upload', () => {
     await expect(openReceipt(deps.deps, USER_ID, TX_ID)).resolves.toEqual({
       url: 'http://localhost:9000/receipts/receipts/4/9?X-Amz-Expires=900',
       expiresAt: '2026-10-26T12:15:00.000Z',
+      contentType: 'image/png',
     });
 
     const missing = fakeDeps();
@@ -249,7 +265,7 @@ describe('receipt upload', () => {
 
     const unsafe = fakeDeps();
     unsafe.findTransaction.mockResolvedValue({
-      receipt: { storageKey: '../receipts/1/2' },
+      receipt: { storageKey: '../receipts/1/2', contentType: 'image/png' },
     });
     await expectStatus(
       openReceipt(unsafe.deps, USER_ID, TX_ID),
@@ -262,7 +278,7 @@ describe('receipt upload', () => {
   it('removes the object before the row, and stops when storage fails', async () => {
     const deps = fakeDeps();
     deps.findTransaction.mockResolvedValue({
-      receipt: { storageKey: 'receipts/4/9' },
+      receipt: { storageKey: 'receipts/4/9', contentType: 'image/png' },
     });
 
     await removeReceipt(deps.deps, USER_ID, TX_ID);
@@ -275,7 +291,7 @@ describe('receipt upload', () => {
 
     const failed = fakeDeps();
     failed.findTransaction.mockResolvedValue({
-      receipt: { storageKey: 'receipts/4/9' },
+      receipt: { storageKey: 'receipts/4/9', contentType: 'image/png' },
     });
     failed.deleteObject.mockRejectedValue(new Error('storage'));
     await expectStatus(

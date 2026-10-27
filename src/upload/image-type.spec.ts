@@ -1,4 +1,4 @@
-import { detectReceiptImage } from './image-type.js';
+import { detectReceiptFile, detectReceiptImage } from './image-type.js';
 
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
@@ -44,6 +44,17 @@ describe('receipt image bytes', () => {
     const webp = Buffer.from(WEBP_HEX, 'hex');
     webp.writeUInt32LE(1, 4);
     expect(detectReceiptImage(webp)).toBeNull();
+  });
+
+  it('accepts a PDF that starts with the header and contains the end marker', () => {
+    const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
+    expect(detectReceiptFile(pdf)).toBe('application/pdf');
+    expect(detectReceiptFile(Buffer.from(PNG_BASE64, 'base64'))).toBe('image/png');
+  });
+
+  it('rejects a PDF header without the end marker and an end marker without the header', () => {
+    expect(detectReceiptFile(Buffer.from('%PDF-1.4\n'))).toBeNull();
+    expect(detectReceiptFile(Buffer.from('notes %%EOF'))).toBeNull();
   });
 });
 

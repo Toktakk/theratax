@@ -4,8 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ownedByUser } from '../auth/owned-by-user.js';
-import { detectReceiptImage } from './image-type.js';
-import type { ReceiptImageType } from './image-type.js';
+import { detectReceiptFile } from './image-type.js';
+import type { ReceiptFileType } from './image-type.js';
 import {
   MAX_RECEIPT_BYTES,
   RECEIPT_FILE_MESSAGE,
@@ -24,13 +24,17 @@ export interface Receipt {
   byteSize: number;
 }
 
-export interface ReceiptUrl {
+export interface SignedReceiptUrl {
   url: string;
   expiresAt: string;
 }
 
+export interface ReceiptUrl extends SignedReceiptUrl {
+  contentType: string;
+}
+
 export interface OwnedTransaction {
-  receipt: { storageKey: string } | null;
+  receipt: { storageKey: string; contentType: string } | null;
 }
 
 export interface ReceiptWrite {
@@ -80,7 +84,7 @@ export interface ReceiptUploadDeps {
   deleteReceipt: (transactionId: number) => Promise<void>;
   putObject: (key: string, body: Buffer, contentType: string) => Promise<void>;
   deleteObject: (key: string) => Promise<void>;
-  signedReadUrl: (key: string) => Promise<ReceiptUrl>;
+  signedReadUrl: (key: string) => Promise<SignedReceiptUrl>;
   newObjectId: () => string;
 }
 
@@ -127,7 +131,12 @@ export async function openReceipt(
     throw new InternalServerErrorException(RECEIPT_OPEN_MESSAGE);
   }
   try {
-    return await deps.signedReadUrl(transaction.receipt.storageKey);
+    const signed = await deps.signedReadUrl(transaction.receipt.storageKey);
+    return {
+      url: signed.url,
+      expiresAt: signed.expiresAt,
+      contentType: transaction.receipt.contentType,
+    };
   } catch {
     throw new InternalServerErrorException(RECEIPT_OPEN_MESSAGE);
   }
@@ -159,7 +168,7 @@ export async function removeReceipt(
 
 function inspectReceiptFile(file: Express.Multer.File | undefined): {
   bytes: Buffer;
-  contentType: ReceiptImageType;
+  contentType: ReceiptFileType;
   byteSize: number;
 } {
   if (
@@ -170,7 +179,7 @@ function inspectReceiptFile(file: Express.Multer.File | undefined): {
   ) {
     throw new BadRequestException(RECEIPT_FILE_MESSAGE);
   }
-  const contentType = detectReceiptImage(file.buffer);
+  const contentType = detectReceiptFile(file.buffer);
   if (contentType === null) {
     throw new BadRequestException(RECEIPT_FILE_MESSAGE);
   }

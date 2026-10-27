@@ -151,6 +151,7 @@ export interface DailyIncomeSummary {
 export interface ReceiptUrl {
   url: string;
   expiresAt: string;
+  contentType: string;
 }
 
 export interface InvoiceLine {

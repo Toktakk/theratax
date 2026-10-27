@@ -36,8 +36,16 @@ import type {
   WorkplaceDay,
 } from '../types.ts';
 
+const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+const RECEIPT_FILE_MESSAGE = 'Receipt must be an image or PDF up to 10 MiB';
+
 interface FeedPageProps {
   user: ReadyUser;
+}
+
+interface ShownReceipt {
+  url: string;
+  contentType: string;
 }
 
 interface EntryPayload {
@@ -104,10 +112,11 @@ export function FeedPage({ user }: FeedPageProps) {
   const [summary, setSummary] = useState<DailyIncomeSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState('');
-  const [photos, setPhotos] = useState<Record<number, string>>({});
+  const [photos, setPhotos] = useState<Record<number, ShownReceipt>>({});
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const noteRef = useRef<HTMLInputElement>(null);
+  const receiptRef = useRef<HTMLInputElement>(null);
 
   const allowed =
     categories === null ? [] : categoriesForMethod(categories, user.expenseMethod);
@@ -248,7 +257,10 @@ export function FeedPage({ user }: FeedPageProps) {
       request<ReceiptUrl>(`/transactions/${id}/receipt`)
         .then((receipt) => {
           if (!cancelled) {
-            setPhotos((current) => ({ ...current, [id]: receipt.url }));
+            setPhotos((current) => ({
+              ...current,
+              [id]: { url: receipt.url, contentType: receipt.contentType },
+            }));
             setRowErrors((current) => {
               if (!Object.hasOwn(current, id)) {
                 return current;
@@ -286,6 +298,9 @@ export function FeedPage({ user }: FeedPageProps) {
     setFeePence('');
     setBonusPounds('');
     setBonusPence('');
+    if (receiptRef.current !== null) {
+      receiptRef.current.value = '';
+    }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -387,47 +402,42 @@ export function FeedPage({ user }: FeedPageProps) {
       }
     }
 
+    const receiptFile =
+      type === 'expense' ? (receiptRef.current?.files?.item(0) ?? undefined) : undefined;
+    if (receiptFile !== undefined && receiptFile.size > MAX_RECEIPT_BYTES) {
+      setFormError(RECEIPT_FILE_MESSAGE);
+      return;
+    }
+
     setSaving(true);
     try {
-      await request('/transactions', { method: 'POST', json: payload });
+      const created = await request<Transaction>('/transactions', {
+        method: 'POST',
+        json: payload,
+      });
+      let receiptError = '';
+      if (receiptFile !== undefined) {
+        const formData = new FormData();
+        formData.append('file', receiptFile);
+        try {
+          await request(`/transactions/${created.id}/receipt`, {
+            method: 'POST',
+            formData,
+          });
+        } catch (error: unknown) {
+          receiptError = messageOf(error);
+        }
+      }
       clearEntry();
       setReloadKey((value) => value + 1);
+      if (receiptError !== '') {
+        setFormError(receiptError);
+      }
       noteRef.current?.focus();
     } catch (error: unknown) {
       setFormError(messageOf(error));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function onFile(transactionId: number, input: HTMLInputElement) {
-    const file = input.files?.item(0) ?? undefined;
-    input.value = '';
-    if (file === undefined) {
-      return;
-    }
-    setRowErrors((current) => {
-      const next = { ...current };
-      delete next[transactionId];
-      return next;
-    });
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      await request(`/transactions/${transactionId}/receipt`, {
-        method: 'POST',
-        formData,
-      });
-      setItems((current) =>
-        current.map((item) =>
-          item.id === transactionId ? { ...item, hasReceipt: true } : item,
-        ),
-      );
-    } catch (error: unknown) {
-      setRowErrors((current) => ({
-        ...current,
-        [transactionId]: messageOf(error),
-      }));
     }
   }
 
@@ -657,6 +667,17 @@ export function FeedPage({ user }: FeedPageProps) {
               Suggested: {suggestion.name}
             </p>
           ) : null}
+          {type === 'expense' ? (
+            <label className="field">
+              Attach a photo
+              <input
+                ref={receiptRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+              />
+              <span className="muted">JPEG, PNG, WebP, or PDF.</span>
+            </label>
+          ) : null}
           <FormError message={formError} />
           <FormError message={categoriesError} />
           <button
@@ -712,9 +733,8 @@ export function FeedPage({ user }: FeedPageProps) {
               categories={categories ?? []}
               workplaces={workplaces}
               clients={clients}
-              photoUrl={storedValue(photos, item.id)}
+              photo={storedValue(photos, item.id)}
               error={storedValue(rowErrors, item.id) ?? ''}
-              onFile={onFile}
               onEdit={
                 item.type === 'income' && item.invoiceId === undefined
                   ? () => {
@@ -839,18 +859,16 @@ function TransactionRow({
   categories,
   workplaces,
   clients,
-  photoUrl,
+  photo,
   error,
-  onFile,
   onEdit,
 }: {
   item: Transaction;
   categories: readonly ExpenseCategory[];
   workplaces: readonly Workplace[];
   clients: readonly Client[];
-  photoUrl: string | undefined;
+  photo: ShownReceipt | undefined;
   error: string;
-  onFile: (transactionId: number, input: HTMLInputElement) => void;
   onEdit: (() => void) | undefined;
 }) {
   const label = item.categorySlug === undefined ? null : categoryName(categories, item.categorySlug);
@@ -882,22 +900,15 @@ function TransactionRow({
         <p className="amount">{formatPounds(item.amountPence)}</p>
       )}
       {item.hasReceipt ? (
-        photoUrl === undefined ? (
+        photo === undefined ? (
           <p className="muted">Loading photo…</p>
+        ) : photo.contentType === 'application/pdf' ? (
+          <a href={photo.url} target="_blank" rel="noreferrer">
+            View PDF
+          </a>
         ) : (
-          <img className="receipt" src={photoUrl} alt="Receipt" />
+          <img className="receipt" src={photo.url} alt="Receipt" />
         )
-      ) : item.type === 'expense' ? (
-        <label className="field">
-          Attach a photo
-          <input
-            type="file"
-            onChange={(event) => {
-              onFile(item.id, event.target);
-            }}
-          />
-          <span className="muted">JPEG, PNG, or WebP.</span>
-        </label>
       ) : null}
       <FormError message={error} />
       {onEdit === undefined ? null : (
@@ -1338,7 +1349,7 @@ function chosenParty(value: string): { workplaceId?: number; clientId?: number }
   return {};
 }
 
-function storedValue(record: Record<number, string>, id: number): string | undefined {
+function storedValue<T>(record: Record<number, T>, id: number): T | undefined {
   if (!Object.hasOwn(record, id)) {
     return undefined;
   }

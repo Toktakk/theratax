@@ -322,7 +322,7 @@ Creating, updating, or deleting a mileage row recomputes **every** mileage row i
 
 ## Receipt (flow step 3; proposal: upload)
 
-A photo is optional. `POST /transactions` never takes a file. Saving income or an expense with no upload returns `201` and `hasReceipt: false`, and it does not create a `Receipt` row. The upload routes stay for any transaction that has a photo, including expenses. The photo may be a receipt or a payment slip. The transaction keeps one image, not one of each.
+A photo is optional. `POST /transactions` never takes a file. Saving income or an expense with no upload returns `201` and `hasReceipt: false`, and it does not create a `Receipt` row. The upload routes stay for any transaction that has a photo, including expenses. The photo may be a receipt or a payment slip. The transaction keeps one file, not one of each.
 
 `POST /transactions/:id/receipt` is `multipart/form-data` with a single field `file`. The bytes are the image a camera capture or a file picker produced. The request has no filesystem path. Bearer authentication and completed onboarding are required, as for the other transaction routes.
 
@@ -331,8 +331,9 @@ The server reads the bytes. It does not trust the multipart type or the filename
 - `image/jpeg`
 - `image/png`
 - `image/webp`
+- `application/pdf`
 
-HEIC is rejected. A camera capture has to be sent as one of those three.
+HEIC is rejected. A camera capture has to be sent as one of the three images. A PDF is accepted when the bytes start with `%PDF-` and contain `%%EOF`.
 
 Size: 1 byte through 10 MiB (`10 * 1024 * 1024`). The limit is `MAX_RECEIPT_BYTES` in the upload module. The multer limit and the service use that same value.
 
@@ -354,16 +355,17 @@ The object is private. The server generates the storage key. An existing row who
 
 ```ts
 interface ReceiptUrl {
-  url: string;       // short-lived signed URL
-  expiresAt: string; // 15 minutes from issue
+  url: string;        // short-lived signed URL
+  expiresAt: string;  // 15 minutes from issue
+  contentType: string; // type stored on the receipt row
 }
 ```
 
-The client uses `url` as an image source. The API does not stream the bytes and does not return a permanent public URL. The signature lifetime is 900 seconds. `hasReceipt` on the transaction is how the client knows a photo is saved without requesting this link.
+The client uses `url` as an image source when `contentType` is an image, and opens that same URL when `contentType` is `application/pdf`. The API does not stream the bytes and does not return a permanent public URL. The signature lifetime is 900 seconds. `hasReceipt` on the transaction is how the client knows a file is saved without requesting this link.
 
 No photo yet, and the transaction exists: `404` `{ "message": "Receipt for transaction <id> not found", "error": "Not Found", "statusCode": 404 }`. Missing transaction, including another user's id: `404` `{ "message": "Transaction <id> not found", ... }`, on upload, on the link, and on delete. `DELETE` of an existing photo returns `204`.
 
-A missing file, an empty file, a file over 10 MiB, a type outside the three images, or bytes that are not a complete image of that type: `400` `{ "message": "Receipt must be an image up to 10 MiB", "error": "Bad Request", "statusCode": 400 }`.
+A missing file, an empty file, a file over 10 MiB, a type outside JPEG, PNG, WebP, and PDF, or bytes that are not a complete file of that type: `400` `{ "message": "Receipt must be an image or PDF up to 10 MiB", "error": "Bad Request", "statusCode": 400 }`.
 
 Saving the object or the receipt row failed: `500` `{ "message": "Receipt could not be stored", "error": "Internal Server Error", "statusCode": 500 }`. The receipt row is unchanged. Signing the link failed: `500` `{ "message": "Receipt could not be opened", ... }`. Deleting the stored image failed: `500` `{ "message": "Receipt could not be removed", ... }`.
 

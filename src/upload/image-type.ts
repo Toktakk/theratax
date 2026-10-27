@@ -1,5 +1,10 @@
 export type ReceiptImageType = 'image/jpeg' | 'image/png' | 'image/webp';
 
+export type ReceiptFileType = ReceiptImageType | 'application/pdf';
+
+const PDF_HEADER = Buffer.from('%PDF-');
+const PDF_EOF = Buffer.from('%%EOF');
+
 const PNG_SIGNATURE = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 ]);
@@ -16,6 +21,17 @@ export function detectReceiptImage(bytes: Buffer): ReceiptImageType | null {
   }
   if (isWebp(bytes)) {
     return 'image/webp';
+  }
+  return null;
+}
+
+export function detectReceiptFile(bytes: Buffer): ReceiptFileType | null {
+  const image = detectReceiptImage(bytes);
+  if (image !== null) {
+    return image;
+  }
+  if (isPdf(bytes)) {
+    return 'application/pdf';
   }
   return null;
 }
@@ -301,6 +317,16 @@ function validVp8(chunk: Buffer): boolean {
   const width = chunk.readUInt16LE(6) & 0x3fff;
   const height = chunk.readUInt16LE(8) & 0x3fff;
   return width > 0 && height > 0;
+}
+
+function isPdf(bytes: Buffer): boolean {
+  if (bytes.length < PDF_HEADER.length + PDF_EOF.length) {
+    return false;
+  }
+  if (!bytes.subarray(0, PDF_HEADER.length).equals(PDF_HEADER)) {
+    return false;
+  }
+  return bytes.includes(PDF_EOF);
 }
 
 function validVp8l(chunk: Buffer): boolean {
