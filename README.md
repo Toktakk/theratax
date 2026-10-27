@@ -2,6 +2,8 @@
 
 TheraTax is a bookkeeping app for a self-employed massage therapist in the UK. It records income and expenses, keeps a receipt file when there is one, bills a spa, clinic, or client from those income rows, and estimates Income Tax and Class 4 National Insurance for the 2026–27 tax year.
 
+Repository: https://github.com/Toktakk/theratax
+
 The figures are for planning. They are not a tax return and they are not advice.
 
 ## What you can do
