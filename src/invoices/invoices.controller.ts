@@ -19,6 +19,8 @@ import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto.js';
 import { PayInvoiceDto } from './dto/pay-invoice.dto.js';
 import { PreviewInvoiceQueryDto } from './dto/preview-invoice-query.dto.js';
 import { buildInvoicePdf } from './invoice-pdf.js';
+import type { InvoicePdfLine } from './invoice-pdf.js';
+import type { PostalAddress } from '../postal-address/postal-address.js';
 import { InvoicesService } from './invoices.service.js';
 import type {
   InvoiceListResponse,
@@ -63,17 +65,28 @@ export class InvoicesController {
     const invoice = await this.invoicesService.findOne(user, id);
     const bytes = await buildInvoicePdf({
       therapistName: user.name,
+      therapistEmail: user.email,
+      therapistAddress: pdfAddress(
+        invoice.supplierAddressLine1,
+        invoice.supplierAddressLine2,
+        invoice.supplierTown,
+        invoice.supplierPostcode,
+      ),
       number: invoice.number,
       issuedOn: invoice.issuedOn,
-      clientName: invoice.clientName ?? '',
-      service: invoice.service ?? '',
+      recipientName: invoice.recipientName ?? invoice.clientName ?? '',
+      recipientAddress: pdfAddress(
+        invoice.recipientAddressLine1,
+        invoice.recipientAddressLine2,
+        invoice.recipientTown,
+        invoice.recipientPostcode,
+      ),
+      periodStart: invoice.periodStart ?? invoice.issuedOn,
+      periodEnd: invoice.periodEnd ?? invoice.issuedOn,
       amountPence: invoice.amountPence,
       status: invoice.status,
       paidOn: invoice.paidOn,
-      recipientName: invoice.recipientName,
-      periodStart: invoice.periodStart,
-      periodEnd: invoice.periodEnd,
-      lines: invoice.lines,
+      lines: pdfLines(invoice),
     });
     return new StreamableFile(Buffer.from(bytes), {
       type: 'application/pdf',
@@ -97,4 +110,43 @@ export class InvoicesController {
   ): Promise<InvoiceResponse> {
     return this.invoicesService.pay(user, id, body);
   }
+}
+
+function pdfAddress(
+  line1: string | undefined,
+  line2: string | undefined,
+  town: string | undefined,
+  postcode: string | undefined,
+): PostalAddress | null {
+  if (line1 === undefined || town === undefined || postcode === undefined) {
+    return null;
+  }
+  const address: PostalAddress = { addressLine1: line1, town, postcode };
+  if (line2 !== undefined) {
+    address.addressLine2 = line2;
+  }
+  return address;
+}
+
+function pdfLines(invoice: InvoiceResponse): InvoicePdfLine[] {
+  if (invoice.lines !== undefined && invoice.lines.length > 0) {
+    return invoice.lines.map((line) => ({
+      occurredOn: line.occurredOn,
+      description: line.description,
+      quantity: line.quantity,
+      quantityUnit: line.quantityUnit,
+      ratePence: line.ratePence,
+      amountPence: line.amountPence,
+    }));
+  }
+  return [
+    {
+      occurredOn: invoice.issuedOn,
+      description: invoice.service ?? '',
+      quantity: 1,
+      quantityUnit: 'session',
+      ratePence: invoice.amountPence,
+      amountPence: invoice.amountPence,
+    },
+  ];
 }

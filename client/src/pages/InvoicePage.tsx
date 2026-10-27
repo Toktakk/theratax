@@ -1,7 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
+import { AddressFields } from '../address-fields.tsx';
+import {
+  addressError,
+  addressPayload,
+  emptyAddress,
+  formatAddress,
+  hasAddress,
+} from '../address.ts';
+import type { AddressDraft } from '../address.ts';
 import { downloadFile, messageOf, request } from '../api.ts';
-import { insertByName, SaveClientForm, SaveWorkplaceForm } from '../directory-forms.tsx';
+import {
+  EditClientForm,
+  EditWorkplaceForm,
+  insertByName,
+  SaveClientForm,
+  SaveWorkplaceForm,
+} from '../directory-forms.tsx';
 import { FormError } from '../FormError.tsx';
 import { civilDateFromInput, formatPounds } from '../format.ts';
 import type {
@@ -13,6 +28,7 @@ import type {
   InvoicePreview,
   ListResponse,
   RecipientKind,
+  User,
   Workplace,
 } from '../types.ts';
 
@@ -31,7 +47,13 @@ const MONTHS = [
   { value: 12, label: 'December' },
 ] as const;
 
-export function InvoicePage() {
+export function InvoicePage({
+  user,
+  onUserUpdated,
+}: {
+  user: User;
+  onUserUpdated: (user: User) => void;
+}) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState('');
@@ -72,6 +94,11 @@ export function InvoicePage() {
     recipientKind === 'spa' || recipientKind === 'clinic'
       ? workplaces.filter((workplace) => workplace.kind === recipientKind)
       : [];
+  const chosenWorkplace = workplaceChoices.find((workplace) => String(workplace.id) === workplaceId);
+  const chosenClient = clients.find((client) => String(client.id) === clientId);
+  const recipientMissingAddress =
+    (chosenWorkplace !== undefined && !hasAddress(chosenWorkplace)) ||
+    (chosenClient !== undefined && !hasAddress(chosenClient));
 
   useEffect(() => {
     let cancelled = false;
@@ -194,7 +221,13 @@ export function InvoicePage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (draft === null || preview === null || preview.lines.length === 0) {
+    if (
+      draft === null ||
+      preview === null ||
+      preview.lines.length === 0 ||
+      !hasAddress(user) ||
+      recipientMissingAddress
+    ) {
       return;
     }
     setFormError('');
@@ -243,12 +276,19 @@ export function InvoicePage() {
     previewLoading ||
     previewError !== '' ||
     preview === null ||
-    preview.lines.length === 0;
+    preview.lines.length === 0 ||
+    !hasAddress(user) ||
+    recipientMissingAddress;
 
   return (
     <div className="stack">
       <h2>Invoices</h2>
       <form className="card stack" onSubmit={onSubmit}>
+        {hasAddress(user) ? (
+          <p className="muted">Business address: {formatAddress(user)}</p>
+        ) : (
+          <BusinessAddressForm onSaved={onUserUpdated} />
+        )}
         <fieldset>
           <legend>Recipient</legend>
           <div className="inline-choices">
@@ -311,6 +351,19 @@ export function InvoicePage() {
                 setDirectoryError('');
               }}
             />
+            {chosenWorkplace !== undefined && !hasAddress(chosenWorkplace) ? (
+              <EditWorkplaceForm
+                workplace={chosenWorkplace}
+                onSaved={(workplace) => {
+                  setWorkplaces((current) =>
+                    current.map((item) => (item.id === workplace.id ? workplace : item)),
+                  );
+                }}
+                onCancel={() => {
+                  setWorkplaceId('');
+                }}
+              />
+            ) : null}
           </>
         ) : null}
         {recipientKind === 'client' ? (
@@ -339,6 +392,17 @@ export function InvoicePage() {
                 setDirectoryError('');
               }}
             />
+            {chosenClient !== undefined && !hasAddress(chosenClient) ? (
+              <EditClientForm
+                client={chosenClient}
+                onSaved={(client) => {
+                  setClients((current) => current.map((item) => (item.id === client.id ? client : item)));
+                }}
+                onCancel={() => {
+                  setClientId('');
+                }}
+              />
+            ) : null}
           </>
         ) : null}
         <FormError message={directoryError} />
@@ -671,4 +735,42 @@ function previewSearch(draft: InvoiceDraft): string {
     params.set('issuedOn', draft.issuedOn);
   }
   return params.toString();
+}
+
+function BusinessAddressForm({ onSaved }: { onSaved: (user: User) => void }) {
+  const [draft, setDraft] = useState<AddressDraft>(emptyAddress());
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const problem = addressError(draft);
+    if (problem !== '') {
+      setError(problem);
+      return;
+    }
+    setError('');
+    setSaving(true);
+    try {
+      const updated = await request<User>('/users/me/address', {
+        method: 'PATCH',
+        json: addressPayload(draft),
+      });
+      onSaved(updated);
+    } catch (caught: unknown) {
+      setError(messageOf(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="subcard">
+      <p className="muted">Add your business address before issuing an invoice.</p>
+      <AddressFields draft={draft} onChange={setDraft} />
+      <FormError message={error} />
+      <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+        {saving ? 'Saving…' : 'Save address'}
+      </button>
+    </div>
+  );
 }

@@ -18,6 +18,7 @@ Phase 2 from the proposal is out of scope and is listed at the end. It is not qu
 | POST | `/auth/login` | `{ email, password }` | no |
 | GET | `/users/me` | — | yes |
 | PATCH | `/users/me/onboarding` | `{ practiceType, expenseMethod }` | yes |
+| PATCH | `/users/me/address` | business address | yes |
 | GET | `/expense-categories` | — | yes |
 | GET | `/transactions` | `skip`, `limit`, optional `type` | yes |
 | POST | `/transactions` | see Transaction | yes |
@@ -79,6 +80,10 @@ interface User {
   practiceType: "mobile" | "fixedLocation" | "mixed" | null;
   expenseMethod: "flat_rate" | "actual_cost" | null;
   onboardedAt: string | null; // always present; null until onboarding
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
 }
 ```
 
@@ -117,6 +122,23 @@ The target user is a sole trader. Legal form is not a field. `practiceType` is t
 
 ```json
 { "message": "Onboarding already completed", "error": "Conflict", "statusCode": 409 }
+
+## Business address
+
+`PATCH /users/me/address` stores the sole trader's address used on invoices. It can be called before or after onboarding, and it can be called again to correct a mistake. Onboarding itself stays one-time.
+
+```ts
+interface PostalAddress {
+  addressLine1: string;   // trimmed, 1–100 characters
+  addressLine2?: string;  // omitted when blank, up to 100 characters
+  town: string;           // trimmed, 1–80 characters
+  postcode: string;       // UK postcode, stored uppercase with one space, for example SW1A 1AA
+}
+```
+
+`200` returns the `User`. The four address fields are omitted until an address is saved. A blank line or town is `400` `"Address is required"`. A postcode that is not a UK postcode is `400` `"Enter a UK postcode"`.
+
+Issuing an invoice copies this address onto the invoice. A later change does not rewrite an invoice that was already issued.
 ```
 
 `flat_rate` rates for 2026–27, car or van: **55p** per mile for the first 10,000 business miles in the tax year, **25p** after that. Motorcycle rates are out of scope.
@@ -391,13 +413,13 @@ Cash basis is the standard record for a sole trader: income counts when the mone
 
 [Step 17](19_step17_invoices_from_records.md) stops that write for a new invoice. Rows already linked keep `transactionId`.
 
-The `200` body is the `Invoice`, now including `paidOn` and `transactionId`. The tax summary picks this up because it sums income transactions. An unpaid invoice has no transaction, so it stays out of the estimate.
+The `200` body is the `Invoice`, now including `paidOn` and `transactionId`. The tax summary includes a step 11 income row because that row's `invoiceId` points at a paid invoice. An unpaid invoice stays out of the estimate. Feed income stays out until the invoice that bills it is paid.
 
-The swipe remains the path for cash or a transfer that never had an invoice. The client should not also swipe a session that will be marked paid on an invoice; the server does not try to detect that duplicate.
+Logging income on the feed records the amount for the daily summary. It does not by itself enter the tax estimate. The server does not try to detect a duplicate between a feed row and an invoice.
 
 `issued` → `paid` is the only transition. A second pay is `409` `"Invoice is already paid"`. Any other `PATCH` body is `400`. Invoice fields other than status are fixed at creation.
 
-`GET /invoices/:id/pdf` returns `200` with `Content-Type: application/pdf` and `Content-Disposition: attachment; filename="<number>.pdf"`. The PDF shows the therapist's name, the invoice number, `issuedOn`, client, service, the amount in pounds and pence, the status, and `paidOn` when paid. Generation is synchronous. Flow step 4 may take a short load. The PDF builder is a pure function of the invoice and the user's name, called by the handler, so it can be unit-tested without HTTP.
+`GET /invoices/:id/pdf` returns `200` with `Content-Type: application/pdf` and `Content-Disposition: attachment; filename="<number>.pdf"`. The PDF is the A4 invoice described in Invoices from records. Generation is synchronous. Flow step 4 may take a short load. The PDF builder is a pure function of the invoice and the user's name and email, called by the handler, so it can be unit-tested without HTTP.
 
 ## Tax summary (flow step 5; proposal: tax-engine)
 
@@ -425,7 +447,7 @@ interface TaxSummary {
 }
 ```
 
-`incomePence` is the sum of income transactions with `occurredOn` inside the period. That includes swiped income and any income row step 11 already created on pay. A massage row's `amountPence` is base plus additional fee plus bonus, so the bonus is inside this sum once. Do not add `bonusPence` again. Do not add `basePence` on top of `amountPence`, and do not add invoice `amountPence`. The step 9 check is unchanged for a user whose income is only `amountPence`. `allowableExpensesPence` is the sum of expense transactions in the period. A loss stays visible on `netProfitPence`. Tax and National Insurance use `taxableProfitPence`. The arithmetic stays in `calculateTaxSummary`. The handler only loads the two sums.
+`incomePence` is the sum of income `amountPence` for rows with `occurredOn` inside the period that are linked to an invoice whose status is `paid`. A row counts when its `invoiceId` points at a paid invoice, or when one of its invoice lines belongs to a paid invoice. Logged income with no invoice, and income on an invoice that is still `issued`, are excluded. Each row is included once. A massage row's `amountPence` is base plus additional fee plus bonus, so the bonus is inside this sum once. Do not add `bonusPence` again. Do not add `basePence` on top of `amountPence`, and do not add invoice `amountPence`. Paying an invoice does not insert another income row. `allowableExpensesPence` is the sum of expense transactions in the period, including expenses that have no invoice. A loss stays visible on `netProfitPence`. Tax and National Insurance use `taxableProfitPence`. The arithmetic stays in `calculateTaxSummary`. The handler only loads the two sums.
 
 Rates are England, Wales, and Northern Ireland for 2026–27 ([GOV.UK: Income Tax](https://www.gov.uk/income-tax-rates), [GOV.UK: self-employed National Insurance](https://www.gov.uk/self-employed-national-insurance-rates)).
 
@@ -458,7 +480,7 @@ Worked example, profit £20,000 (`2_000_000` pence), no other complications:
 
 1. Rates are for England, Wales, and Northern Ireland for 2026–27. Scottish Income Tax is not applied.
 2. Trading profit is treated as the user's only income. The personal allowance of £12,570 is applied in full and is not tapered.
-3. Cash basis: income counts when it is received, expenses when they are paid. Unpaid invoices are excluded.
+3. Cash basis: income counts when the invoice is marked paid, expenses when they are paid. Logged income and unpaid invoices are excluded.
 4. Student loans, pension contributions, Marriage Allowance, and other reliefs are not applied.
 5. Class 2 National Insurance is not included in estimated tax owed. At or above £7,105 it is treated as paid. Below that, voluntary Class 2 is £3.65 a week and is not added here.
 6. Flat-rate vehicle costs use simplified mileage for a car or van (55p then 25p). Motorcycle rates are not applied.
@@ -507,6 +529,10 @@ interface Workplace {
   kind: "spa" | "clinic";
   hourRatePence: number; // integer pence per hour
   hourExtras: HourExtra[]; // pregnancy, hot stone, body scrub, request, then other by name
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -520,6 +546,10 @@ interface CreateWorkplace {
   kind: "spa" | "clinic";
   hourRatePence: number;     // integer, 1 .. 100_000_000
   hourExtras?: HourExtra[];  // omitted means none
+  addressLine1: string;
+  addressLine2?: string;
+  town: string;
+  postcode: string;
 }
 ```
 
@@ -530,6 +560,10 @@ interface UpdateWorkplace {
   name: string;
   hourRatePence: number;
   hourExtras: HourExtra[]; // replaces the stored extras, including an empty list
+  addressLine1: string;
+  addressLine2?: string;
+  town: string;
+  postcode: string;
 }
 ```
 
@@ -547,7 +581,7 @@ interface UpdateWorkplace {
 
 Bearer is required. Before onboarding the response is `403` `"Complete onboarding before using this resource"`. A missing token is `401` `"Unauthorized"`.
 
-Postman: `POST` `{ "name": "North Spa", "kind": "spa", "hourRatePence": 2500, "hourExtras": [{ "massageType": "pregnancy", "extraPence": 200 }, { "massageType": "request", "extraPence": 200 }, { "massageType": "body_scrub", "extraPence": 500 }] }` returns `201`. `hourRatePence` is `2500` (£25 per hour). `hourExtras` lists pregnancy `200`, body scrub `500`, then request `200`. The same name with different capital letters returns `409` `"Workplace already saved"`. `{ "name": "North Spa", "kind": "clinic", "hourRatePence": 2500 }` returns `201` and `hourExtras` is `[]`. `PATCH /workplaces/:id` with a new name and the same rate returns `200`. `GET /workplaces` with a second user's token does not include the first user's ids. An empty `name`, `kind` `"hotel"`, or a missing hour rate is `400` and `message` is an array. Two pregnancy extras is `400` `"Hour extra already set for this massage type"`.
+Postman: `POST` `{ "name": "North Spa", "kind": "spa", "hourRatePence": 2500, "addressLine1": "4 Spa Lane", "town": "Leeds", "postcode": "LS1 4AP", "hourExtras": [{ "massageType": "pregnancy", "extraPence": 200 }, { "massageType": "request", "extraPence": 200 }, { "massageType": "body_scrub", "extraPence": 500 }] }` returns `201`. `hourRatePence` is `2500` (£25 per hour). `postcode` is `LS1 4AP`. `hourExtras` lists pregnancy `200`, body scrub `500`, then request `200`. The same name with different capital letters returns `409` `"Workplace already saved"`. `{ "name": "North Spa", "kind": "clinic", "hourRatePence": 2500, "addressLine1": "1 Clinic Road", "town": "Manchester", "postcode": "M1 1AE" }` returns `201` and `hourExtras` is `[]`. `PATCH /workplaces/:id` with a new name, the same rate, and the same address returns `200`. `GET /workplaces` with a second user's token does not include the first user's ids. An empty `name`, `kind` `"hotel"`, a missing hour rate, or a missing address is `400` and `message` is an array. A postcode that is not a UK postcode is `400` `"Enter a UK postcode"`. Two pregnancy extras is `400` `"Hour extra already set for this massage type"`.
 
 ## Daily income summary (step 16)
 
@@ -599,9 +633,9 @@ An empty day is `200` with every pence field `0` and both arrays empty.
 
 The grouping function is pure and unit-tested: inputs of base `6000`, fee `200`, bonus `500`, and `amountPence` `6700` return `totalPence` `6700`. Adding `amountPence` again, adding the bonus twice, or dropping the bonus fails that test. The handler loads income rows and calls it. It does not load a bonus table.
 
-`GET /tax/summary` does not add `bonusPence` on top of income `amountPence`. It still calls `calculateTaxSummary` with the two sums.
+`GET /tax/summary` does not add `bonusPence` on top of income `amountPence`. It still calls `calculateTaxSummary` with the two sums. Logging the row does not change `incomePence`. After the invoice that bills that row is marked paid, `incomePence` is `6700` higher than before the payment, not `7200` higher and not `6200` higher.
 
-Postman: one Swedish income with `basePence` `6000`, `additionalFeePence` `200`, and `bonusPence` `500` on the same date returns `basePence` `6000`, `additionalFeePence` `200`, `bonusPence` `500`, and `totalPence` `6700`. `byMassageType` for `swedish` includes that bonus. Delete that income. The next summary is zeros, including the bonus. `GET /tax/summary` while the row exists is `6700` higher than after it is deleted, not `7200` higher and not `6200` higher. An issued invoice does not change this summary.
+Postman: one Swedish income with `basePence` `6000`, `additionalFeePence` `200`, and `bonusPence` `500` on the same date returns `basePence` `6000`, `additionalFeePence` `200`, `bonusPence` `500`, and `totalPence` `6700`. `byMassageType` for `swedish` includes that bonus. Delete that income. The next summary is zeros, including the bonus. An issued invoice does not change this daily summary.
 
 ## Client (step 17)
 
@@ -613,16 +647,20 @@ interface Client {
   name: string;
   hourRatePence: number;
   hourExtras: HourExtra[];
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
   createdAt: string;
   updatedAt: string;
 }
 ```
 
-`POST /clients` takes `{ name, hourRatePence, hourExtras? }`. `name` is trimmed to 1–200 characters. `hourRatePence` is an integer from 1 to `100_000_000`. `hourExtras` uses the same rules as a workplace and defaults to none. The response is `201`. The same user and the same name ignoring case is `409` `"Client already saved"`. `GET /clients` uses the list envelope, ordered by `name` ascending, then `id` ascending. `GET /clients/:id` returns one. A missing id and another user's id are `404` `"Client <id> not found"`.
+`POST /clients` takes `{ name, hourRatePence, hourExtras?, addressLine1, addressLine2?, town, postcode }`. `name` is trimmed to 1–200 characters. `hourRatePence` is an integer from 1 to `100_000_000`. `hourExtras` uses the same rules as a workplace and defaults to none. The address uses the same rules as `PATCH /users/me/address`. The response is `201`. The same user and the same name ignoring case is `409` `"Client already saved"`. `GET /clients` uses the list envelope, ordered by `name` ascending, then `id` ascending. `GET /clients/:id` returns one. A missing id and another user's id are `404` `"Client <id> not found"`.
 
-`PATCH /clients/:id` takes `{ name, hourRatePence?, hourExtras? }` and returns `200`. A field that is omitted stays as stored. `hourExtras`, including `[]`, replaces the stored extras. A rename does not change `recipientName` on an invoice already issued. `DELETE` returns `204`. A client referenced by a transaction or an invoice is `409` `"Client is used by a record"`.
+`PATCH /clients/:id` takes `{ name, hourRatePence?, hourExtras?, addressLine1, addressLine2?, town, postcode }` and returns `200`. `hourRatePence`, when omitted, stays as stored. `hourExtras`, including `[]`, replaces the stored extras. The address is replaced. A blank `addressLine2` clears the second line. A rename does not change `recipientName` on an invoice already issued, and a new address does not change an address already copied onto an invoice. `DELETE` returns `204`. A client referenced by a transaction or an invoice is `409` `"Client is used by a record"`.
 
-Postman: create `Ada Client` with `hourRatePence` `2500`, create `ada client` with the same rate, and read `409` on the second. With another user's token, `GET /clients/:id` for the first id is `404`. A body with no `hourRatePence` is `400` and `message` is an array.
+Postman: create `Ada Client` with `hourRatePence` `2500`, `addressLine1` `12 High Street`, `town` `London`, and `postcode` `SW1A 1AA`. Create `ada client` with the same rate and address, and read `409` on the second. With another user's token, `GET /clients/:id` for the first id is `404`. A body with no `hourRatePence` or no address is `400` and `message` is an array.
 
 ## Invoices from records (step 17)
 
@@ -657,6 +695,14 @@ interface RecordedInvoice {
   status: "issued" | "paid";
   paidOn?: string;
   lines: InvoiceLine[];
+  supplierAddressLine1?: string;
+  supplierAddressLine2?: string;
+  supplierTown?: string;
+  supplierPostcode?: string;
+  recipientAddressLine1?: string;
+  recipientAddressLine2?: string;
+  recipientTown?: string;
+  recipientPostcode?: string;
   transactionId?: number;   // only on a baseline invoice that step 11 already linked
 }
 ```
@@ -686,11 +732,11 @@ Eligible income is this user's `income` rows whose `occurredOn` is inside the cl
 
 Lines are ordered by `occurredOn` ascending, then service, then additional fee, then bonus. A monthly invoice uses that order as the breakdown by date. The line builder is a pure function. For each eligible income it emits a `service` line: `quantity` 1, `quantityUnit` `"session"`, `ratePence` and `amountPence` equal to `basePence` when that is set, otherwise `amountPence`. `description` is the massage name from the table above, the custom text when the type is `other`, or `"Income"` when there is no massage type. When `additionalFeePence` is greater than 0 it also emits an `additional_fee` line with quantity 1, `quantityUnit` `"session"`, description `"Additional Massage Fee"`, and that fee as both rate and amount. When `bonusPence` is greater than 0 it also emits a `bonus` line with quantity 1, `quantityUnit` `"session"`, description `"Bonus"`, and that bonus as both rate and amount. The bonus is not added again into the service amount or into the invoice total.
 
-`amountPence` on the invoice is the sum of the line amounts. The client cannot send it. Preview returns `200` with `lines`, `amountPence`, the recipient, and the period bounds. An empty eligible set is `200` with `lines: []` and `amountPence: 0`. `POST` of an empty set is `400` `"No records to invoice for this recipient and period"`. `POST` of a non-empty set returns `201` and the `RecordedInvoice`, status `issued`, with the lines stored. A later preview or create skips those sources. There is no second bill for the same work.
+`amountPence` on the invoice is the sum of the line amounts. The client cannot send it. Preview returns `200` with `lines`, `amountPence`, the recipient, and the period bounds. An empty eligible set is `200` with `lines: []` and `amountPence: 0`. `POST` of an empty set is `400` `"No records to invoice for this recipient and period"`. `POST` of a non-empty set copies the user's business address and the recipient's address onto the invoice and returns `201` and the `RecordedInvoice`, status `issued`, with the lines stored. A missing business address is `400` `"Add your business address before issuing an invoice"`. A recipient with no address is `400` `"Add an address for this recipient before issuing an invoice"`. Those checks run after the empty-set check. A later preview or create skips those sources. There is no second bill for the same work. A later edit of either address does not change the copy stored on the invoice.
 
 `PATCH` is still only `{ status: "paid", paidOn? }`. `paidOn` defaults to today, must be on or after `issuedOn`, and must sit in the tax year. The handler sets status and `paidOn`. It does not create a transaction. A second pay is `409` `"Invoice is already paid"`.
 
-`GET /invoices/:id/pdf` is unchanged in status and headers. The PDF builder stays a pure function of the invoice and the user's name. For an invoice with lines it draws the recipient name, the period, each line's description, quantity, rate, and amount, and the total. A baseline invoice with no lines still draws the single client, service, and amount. The unit test does not use HTTP. The bytes still start with `%PDF`.
+`GET /invoices/:id/pdf` stays `200`, `Content-Type: application/pdf`, and `Content-Disposition: attachment; filename="<number>.pdf"`. The PDF is an A4 invoice. It shows the word INVOICE, the invoice number, the therapist's name, email, and business address, the recipient's name and address, the invoice date, the supply period, each line's date, description, quantity, rate, and amount, the total in GBP, the status, and `paidOn` when paid. It states that the issuer is a sole trader who is not registered for VAT, so no VAT is charged. Amounts use the truncated pounds and two-digit pence converter. A baseline invoice with no lines still draws one row from the client, the service, and the amount. An invoice stored before addresses existed draws `Address not recorded` for a missing party. A long table continues on the next page. The unit test does not use HTTP. The bytes still start with `%PDF`.
 
 Postman, after steps 13–16: save a spa, log Swedish income of base `6000`, fee `200`, and bonus `500` on `01-05-2026` for that spa. `GET /invoices/preview` for that spa, `period` `day`, and that date returns three lines and `amountPence` `6700` (service 6000, fee 200, bonus 500). The bonus line appears once. The same spa with `period` `month`, `month` `5`, and `year` `2026` includes that day and excludes a row dated `01-06-2026`. `POST /invoices` with the same fields returns `201`. `GET /transactions?type=income` has no new row whose note is the invoice number. `PATCH` to `paid` returns `200` with `paidOn` and still no new income row. `GET /invoices/:id` after a `PATCH` of the source transaction's `basePence` still shows the original line amount. A second `POST` for that day and spa is `400` `"No records to invoice for this recipient and period"`. A clinic workplace preview does not include the spa's rows. A saved client whose income has `bonusPence` greater than 0 gets a Bonus line. Another user's workplace id is `404`. `GET /invoices/:id/pdf` is `200` with `application/pdf`. `npm test` still passes, including the tax, mileage, and PDF tests.
 
@@ -738,6 +784,9 @@ The same shape uses `Invoice <id> not found`. Receipt wording is in the Receipt 
 | Edit or delete of income that has `invoiceId` | 409 | `Invoice income is changed by updating the invoice` |
 | Pay an invoice that is already paid | 409 | `Invoice is already paid` |
 | Duplicate workplace or client name for this user | 409 | `Workplace already saved` or `Client already saved` |
+| Invoice issued without a business address | 400 | `Add your business address before issuing an invoice` |
+| Invoice issued for a recipient with no address | 400 | `Add an address for this recipient before issuing an invoice` |
+| Address postcode is not a UK postcode | 400 | `Enter a UK postcode` |
 | Delete a client that a transaction or invoice still uses | 409 | `Client is used by a record` |
 | Unknown id, including another user's id | 404 | `<Resource> <id> not found` |
 | Receipt image could not be saved | 500 | `Receipt could not be stored` |

@@ -14,7 +14,7 @@ Open the page from the menu. The request runs when the page opens. Typing on the
 
 Go back to the feed or to invoices with the menu. Log out returns to login.
 
-An unpaid invoice does not move the numbers. Income moves when an income row's `amountPence` changes, including a massage row whose amount already includes the additional fee and the bonus.
+Logging income on the feed does not move the numbers. An issued invoice does not move them. Marking that invoice paid includes each billed source row's `amountPence` once. A massage row's amount already includes the additional fee and the bonus.
 
 ## UI components and layout
 
@@ -44,11 +44,11 @@ There is no client validation. A `400` or `403` is shown as the server message.
 
 Do not multiply by 20, 40, 45, 6, or 2 on this page. Do not add `basePence`, `additionalFeePence`, or `bonusPence` beside `incomePence`.
 
-`incomePence` is already the sum of income `amountPence` for the year. For a massage row that amount is base plus additional fee plus bonus, so the bonus is inside `incomePence` once. The page must not add it again. The handler must not add it again either. That rule is [step 16](18_step16_daily_income_summary.md).
+`incomePence` is already the sum of income `amountPence` for rows in the year that belong to a paid invoice. For a massage row that amount is base plus additional fee plus bonus, so the bonus is inside `incomePence` once. The page must not add it again. The handler must not add it again either, and it must not add the invoice total beside the source row.
 
 `estimatedTaxOwedPence` is income tax plus Class 4. Class 2 is not inside it. A loss stays visible on `netProfitPence`. Tax uses `taxableProfitPence`, which is not negative.
 
-Invoice `amountPence` is not added. A step 17 invoice does not create an income row, so paying it does not raise this page. A step 11 income row that already exists still counts through `amountPence`.
+Invoice `amountPence` is not added. A step 17 invoice does not create an income row. Paying it raises this page by the source rows' `amountPence`, once. A step 11 income row that is linked to a paid invoice still counts through `amountPence`. Logged income with no paid invoice stays out.
 
 ## Data models and API dependencies
 
@@ -71,9 +71,9 @@ The request requires a bearer token and a completed onboarding. Another user's r
 
 - The numbers match a Postman `GET /tax/summary` for the same user. They do not match a total the page computed itself.
 - The feed can log a row without waiting for this page to load. This page's request is absent from that Network tab.
-- An unpaid invoice does not change `incomePence`.
-- A massage row of base `6000`, additional fee `200`, and bonus `500` raises `incomePence` by `6700`, not by `6200` and not by `7200`.
-- Deleting that row lowers `incomePence` by `6700`.
+- Logging a massage row does not change `incomePence`. An unpaid invoice does not change it.
+- After that invoice is paid, a massage row of base `6000`, additional fee `200`, and bonus `500` raises `incomePence` by `6700`, not by `6200` and not by `7200`.
+- Deleting that paid source row lowers `incomePence` by `6700`.
 - `treatedAsPaid: false` shows `voluntaryWeeklyPence` and leaves `estimatedTaxOwedPence` unchanged by that weekly figure.
 - All six assumptions and the disclaimer match the response text.
 - A negative `netProfitPence` is shown as a loss, not hidden.

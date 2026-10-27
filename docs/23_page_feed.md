@@ -142,7 +142,7 @@ The daily summary is `GET /income/summary` for one civil date. It is computed wh
 
 An invoice amount is not part of this summary. Deleting or editing a source row changes the next response. Deleting a massage row removes its base, its fee, and its bonus together, because they are one row.
 
-The tax summary does not read this panel. It sums income `amountPence`, which already includes the bonus. Do not add `bonusPence` a second time anywhere on this page.
+The tax summary does not read this panel. The daily figures stay on the feed. They are not included in `incomePence` until the invoice that bills those rows is marked paid. Do not add `bonusPence` a second time anywhere on this page.
 
 ## Data models and API dependencies
 
@@ -191,11 +191,11 @@ Lists and creates are limited to the token user. Another user's workplace, clien
 - A massage type on an expense is `400` `Massage type is only valid on income`.
 - The same workplace is selected on a second row. The workplace list did not gain a duplicate.
 - The summary for that date shows base `5000`, additional fee `200`, bonus `500`, and total `5700`. The workplace breakdown and the Swedish breakdown each include the bonus once. The top-level total is not `11400` and not `5200`.
-- An issued invoice does not change the summary.
+- An issued invoice does not change the summary. The summary tells the user these amounts stay out of the tax summary until the invoice is paid.
 - Deleting the massage row drops the base, the fee, and the bonus together.
 - Save succeeds with no file chosen. A JPEG then appears on the row. A camera photo uses that same upload. A `.txt` file is rejected and the row stays saved.
 - `oils` suggests Oils and consumables before save. Mileage still sends miles and not `amountPence`.
 
 ## Dependencies on other pages or shared components
 
-Depends on [`26_page_onboarding.md`](26_page_onboarding.md) for `expenseMethod` and the gate, on [`24_page_directory.md`](24_page_directory.md) for saved workplace and client names, and on `api.ts`, `format.ts`, `FormError.tsx`, `hint.ts`, and `category-filter.ts`. The summary figures must match [`25_page_invoice.md`](25_page_invoice.md) and [`27_page_tax_summary.md`](27_page_tax_summary.md) for the same rows. Those pages do not own a second total.
+Depends on [`26_page_onboarding.md`](26_page_onboarding.md) for `expenseMethod` and the gate, on [`24_page_directory.md`](24_page_directory.md) for saved workplace and client names, and on `api.ts`, `format.ts`, `FormError.tsx`, `hint.ts`, and `category-filter.ts`. The daily summary matches the invoice total for the same rows. [`27_page_tax_summary.md`](27_page_tax_summary.md) includes those rows only after the invoice is paid, and it does not add the invoice total on top.

@@ -8,6 +8,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
 import type { HourExtraResponse, StoredHourExtra } from '../hour-extras/hour-extra.js';
+import { addressData, publicAddress, readPostalAddress, storedAddress } from '../postal-address/postal-address.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateClientDto } from './dto/create-client.dto.js';
 import type { ListClientsQueryDto } from './dto/list-clients-query.dto.js';
@@ -18,6 +19,10 @@ export interface ClientResponse {
   name: string;
   hourRatePence: number;
   hourExtras: HourExtraResponse[];
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,6 +45,10 @@ interface ClientRow {
   name: string;
   hourRatePence: number;
   hourExtras: HourExtraRow[];
+  addressLine1: string | null;
+  addressLine2: string | null;
+  town: string | null;
+  postcode: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +67,7 @@ function toResponse(row: ClientRow): ClientResponse {
     name: row.name,
     hourRatePence: row.hourRatePence,
     hourExtras: hourExtrasResponse(row.hourExtras),
+    ...publicAddress(storedAddress(row)),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -75,6 +85,7 @@ export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(user: PublicUser, input: CreateClientDto): Promise<ClientResponse> {
+    const address = readPostalAddress(input);
     const name = this.readName(input.name);
     await this.requireUniqueName(user.id, name);
     const rows = readHourExtras(input.hourExtras ?? []);
@@ -85,6 +96,7 @@ export class ClientsService {
           userId: user.id,
           name,
           hourRatePence: input.hourRatePence,
+          ...addressData(address),
           ...(extras !== undefined ? { hourExtras: extras } : {}),
         },
         include: includeExtras,
@@ -125,6 +137,7 @@ export class ClientsService {
   }
 
   async update(user: PublicUser, id: number, input: UpdateClientDto): Promise<ClientResponse> {
+    const address = readPostalAddress(input);
     await this.findOwned(user.id, id);
     const name = this.readName(input.name);
     await this.requireUniqueName(user.id, name, id);
@@ -134,6 +147,7 @@ export class ClientsService {
         where: { id },
         data: {
           name,
+          ...addressData(address),
           ...(input.hourRatePence !== undefined ? { hourRatePence: input.hourRatePence } : {}),
           ...(rows !== undefined
             ? {

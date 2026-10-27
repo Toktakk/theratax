@@ -5,6 +5,10 @@ export interface PublicUser {
     practiceType: 'mobile' | 'fixedLocation' | 'mixed' | null;
     expenseMethod: 'flat_rate' | 'actual_cost' | null;
     onboardedAt: string | null;
+    addressLine1?: string;
+    addressLine2?: string;
+    town?: string;
+    postcode?: string;
   }
   
   export interface AuthResponse {

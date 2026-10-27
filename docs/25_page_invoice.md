@@ -90,7 +90,7 @@ The invoice `amountPence` is the sum of the line amounts. The fee is in that sum
 
 Lines are stored. Editing the source later does not change them. Deleting a source sets the line's source id to null and leaves the amounts. The next daily summary follows the source. The invoice total does not.
 
-`GET /invoices/:id/pdf` stays `200`, `Content-Type: application/pdf`, and `Content-Disposition: attachment; filename="<number>.pdf"`. An invoice with lines draws the recipient, the period, each line, and the total. A baseline invoice with no lines still draws the single client, service, and amount.
+`GET /invoices/:id/pdf` stays `200`, `Content-Type: application/pdf`, and `Content-Disposition: attachment; filename="<number>.pdf"`. The PDF is an A4 invoice: INVOICE and the number, the therapist's name, email, and business address, the recipient's name and address, the invoice date, the supply period, a table of date, description, quantity, rate, and amount, the GBP total, the status, and the paid date when paid. It says the issuer is a sole trader who is not registered for VAT. A baseline invoice with no lines still draws one row for the client, service, and amount. Create is disabled until the signed-in user has a business address and the selected recipient has an address. A missing business address is `400` `Add your business address before issuing an invoice`. A recipient without an address is `400` `Add an address for this recipient before issuing an invoice`. The page can save the business address, and it can save a workplace or client address, before create.
 
 ## Data models and API dependencies
 
@@ -125,15 +125,15 @@ The page requires a bearer token and completed onboarding. Preview, create, pay,
 - The bonus line description is `Bonus`. The fee line description is `Additional Massage Fee`. The total equals the lines. The bonus is not in the total twice.
 - The same spa for May includes that day and excludes 1 June 2026. After create, a second preview of May no longer includes the billed lines.
 - `POST` returns `201`, status `issued`, a `TT-` number, and the spa's name as `recipientName`. `GET /transactions?type=income` has the same count as before create.
-- Pay returns `200` with `paidOn` and still does not add an income row.
+- Pay returns `200` with `paidOn` and still does not add an income row. `incomePence` then includes that source `amountPence` once.
 - A later `PATCH` of the source base does not change the stored service line. The feed summary does change, because it reads the source.
 - A second `POST` for that spa and day is `400` `No records to invoice for this recipient and period`.
 - A clinic preview does not include the spa's rows or the spa's bonus.
 - A client row with a bonus previews a service line and a Bonus line. A client row with no bonus has no Bonus line.
 - Another user's workplace id is `404` `Workplace <id> not found`.
-- The PDF is `application/pdf` and the filename is the invoice number. A baseline invoice with no lines still produces the original one-line text.
+- The PDF is `application/pdf` and the filename is the invoice number. It shows both addresses, the line table, the GBP total, and the non-VAT sentence. A baseline invoice with no lines still produces one service row.
 - Create does not call `POST /transactions`. The button is disabled while the create request is in flight.
 
 ## Dependencies on other pages or shared components
 
-Depends on income from [`23_page_feed.md`](23_page_feed.md), on workplaces and clients from [`24_page_directory.md`](24_page_directory.md), on the menu in `App.tsx`, and on `api.ts`, `format.ts`, `FormError.tsx`, and `directory-forms.tsx`. Totals must match the feed summary and the tax summary's `incomePence` for the same source rows, without copying those totals into a new income row. The tax page does not read this list.
+Depends on income from [`23_page_feed.md`](23_page_feed.md), on workplaces and clients from [`24_page_directory.md`](24_page_directory.md), on the menu in `App.tsx`, and on `api.ts`, `format.ts`, `FormError.tsx`, and `directory-forms.tsx`. The invoice total matches the feed summary for the same source rows. Paying the invoice includes that source `amountPence` in the tax summary once. It does not copy the total into a new income row. The tax page does not read this list.

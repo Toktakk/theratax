@@ -69,6 +69,10 @@ model User {
   practiceType  PracticeType?
   expenseMethod ExpenseMethod?
   onboardedAt   DateTime?
+  addressLine1  String?
+  addressLine2  String?
+  town          String?
+  postcode      String?
   sessions      Session[]
   transactions  Transaction[]
   invoices      Invoice[]
@@ -148,6 +152,14 @@ model Invoice {
   period        InvoicePeriod?
   periodStart   DateTime?             @db.Date
   periodEnd     DateTime?             @db.Date
+  supplierAddressLine1  String?
+  supplierAddressLine2  String?
+  supplierTown          String?
+  supplierPostcode      String?
+  recipientAddressLine1 String?
+  recipientAddressLine2 String?
+  recipientTown         String?
+  recipientPostcode     String?
   userId        Int
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   workplace     Workplace?            @relation(fields: [workplaceId], references: [id], onDelete: SetNull)
@@ -163,6 +175,10 @@ model Workplace {
   name          String        @db.Citext
   kind          WorkplaceKind
   hourRatePence Int           @default(0)
+  addressLine1  String?
+  addressLine2  String?
+  town          String?
+  postcode      String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   userId        Int
@@ -236,6 +252,10 @@ model Client {
   id            Int           @id @default(autoincrement())
   name          String        @db.Citext
   hourRatePence Int           @default(0)
+  addressLine1  String?
+  addressLine2  String?
+  town          String?
+  postcode      String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   userId        Int

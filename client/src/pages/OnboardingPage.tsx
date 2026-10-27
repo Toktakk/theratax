@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { AddressFields } from '../address-fields.tsx';
+import { addressError, addressPayload, emptyAddress } from '../address.ts';
+import type { AddressDraft } from '../address.ts';
 import { messageOf, request } from '../api.ts';
 import { FormError } from '../FormError.tsx';
 import { asReadyUser } from '../types.ts';
@@ -14,6 +17,7 @@ interface OnboardingPageProps {
 export function OnboardingPage({ user, onComplete, onLogout }: OnboardingPageProps) {
   const [practiceType, setPracticeType] = useState<PracticeType | null>(null);
   const [expenseMethod, setExpenseMethod] = useState<ExpenseMethod | null>(null);
+  const [address, setAddress] = useState<AddressDraft>(emptyAddress());
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -22,9 +26,18 @@ export function OnboardingPage({ user, onComplete, onLogout }: OnboardingPagePro
     if (practiceType === null || expenseMethod === null) {
       return;
     }
+    const addressProblem = addressError(address);
+    if (addressProblem !== '') {
+      setError(addressProblem);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
+      await request<User>('/users/me/address', {
+        method: 'PATCH',
+        json: addressPayload(address),
+      });
       const updated = await request<User>('/users/me/onboarding', {
         method: 'PATCH',
         json: { practiceType, expenseMethod },
@@ -126,6 +139,7 @@ export function OnboardingPage({ user, onComplete, onLogout }: OnboardingPagePro
             Vehicle costs as actually paid
           </label>
         </fieldset>
+        <AddressFields draft={address} onChange={setAddress} />
         <FormError message={error} />
         <button
           className="button-primary"

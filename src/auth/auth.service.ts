@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcrypt';
+import { publicAddress, readPostalAddress, storedAddress } from '../postal-address/postal-address.js';
+import type { PostalAddressDto } from '../postal-address/postal-address.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { OnboardingDto } from './dto/onboarding.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
@@ -17,6 +19,10 @@ interface UserRow {
   practiceType: PublicUser['practiceType'];
   expenseMethod: PublicUser['expenseMethod'];
   onboardedAt: Date | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  town: string | null;
+  postcode: string | null;
 }
 
 function toPublicUser(user: UserRow): PublicUser {
@@ -27,6 +33,7 @@ function toPublicUser(user: UserRow): PublicUser {
     practiceType: user.practiceType,
     expenseMethod: user.expenseMethod,
     onboardedAt: user.onboardedAt === null ? null : user.onboardedAt.toISOString(),
+    ...publicAddress(storedAddress(user)),
   };
 }
 
@@ -93,6 +100,20 @@ export class AuthService {
     if (user === null) {
       throw new UnauthorizedException();
     }
+    return toPublicUser(user);
+  }
+
+  async setAddress(userId: number, input: PostalAddressDto): Promise<PublicUser> {
+    const address = readPostalAddress(input);
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        addressLine1: address.addressLine1,
+        addressLine2: address.addressLine2 ?? null,
+        town: address.town,
+        postcode: address.postcode,
+      },
+    });
     return toPublicUser(user);
   }
 

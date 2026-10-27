@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { PostalAddressDto } from '../postal-address/postal-address.dto.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
@@ -21,5 +22,13 @@ export class UsersController {
     @Body() body: OnboardingDto,
   ): Promise<PublicUser> {
     return this.authService.completeOnboarding(user.id, body);
+  }
+
+  @Patch('me/address')
+  setAddress(
+    @CurrentUser() user: PublicUser,
+    @Body() body: PostalAddressDto,
+  ): Promise<PublicUser> {
+    return this.authService.setAddress(user.id, body);
   }
 }

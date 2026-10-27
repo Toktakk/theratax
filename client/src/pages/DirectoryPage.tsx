@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatAddress } from '../address.ts';
 import { messageOf, request } from '../api.ts';
 import {
   EditClientForm,
@@ -102,6 +103,7 @@ export function DirectoryPage() {
                   {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
                   {formatRateText(workplace.hourRatePence, workplace.hourExtras)}
                 </p>
+                <p className="muted">{formatAddress(workplace) || 'No address yet'}</p>
                 <button
                   className="button-ghost"
                   type="button"
@@ -153,6 +155,7 @@ export function DirectoryPage() {
                 <p>
                   {client.name} · {formatRateText(client.hourRatePence, client.hourExtras)}
                 </p>
+                <p className="muted">{formatAddress(client) || 'No address yet'}</p>
                 <button
                   className="button-ghost"
                   type="button"

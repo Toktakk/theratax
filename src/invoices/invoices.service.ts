@@ -3,10 +3,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PublicUser } from '../auth/public-user.js';
+import { storedAddress } from '../postal-address/postal-address.js';
+import type { PostalAddress } from '../postal-address/postal-address.js';
 import {
   formatCivilDate,
   parseTaxYearDate,
@@ -54,6 +57,14 @@ export interface InvoiceResponse {
   period?: 'day' | 'month';
   periodStart?: string;
   periodEnd?: string;
+  supplierAddressLine1?: string;
+  supplierAddressLine2?: string;
+  supplierTown?: string;
+  supplierPostcode?: string;
+  recipientAddressLine1?: string;
+  recipientAddressLine2?: string;
+  recipientTown?: string;
+  recipientPostcode?: string;
   lines?: InvoiceLineResponse[];
 }
 
@@ -105,6 +116,14 @@ interface InvoiceRow {
   period: 'day' | 'month' | null;
   periodStart: Date | null;
   periodEnd: Date | null;
+  supplierAddressLine1: string | null;
+  supplierAddressLine2: string | null;
+  supplierTown: string | null;
+  supplierPostcode: string | null;
+  recipientAddressLine1: string | null;
+  recipientAddressLine2: string | null;
+  recipientTown: string | null;
+  recipientPostcode: string | null;
   transaction: { id: number } | null;
   lines: StoredLine[];
 }
@@ -119,6 +138,7 @@ interface InvoiceDraft {
   periodEnd: Date;
   lines: BuiltInvoiceLine[];
   amountPence: number;
+  address: PostalAddress | null;
 }
 
 type InvoiceRequest = CreateInvoiceDto | PreviewInvoiceQueryDto;
@@ -254,10 +274,62 @@ function toResponse(row: InvoiceRow): InvoiceResponse {
   if (row.periodEnd !== null) {
     response.periodEnd = formatCivilDate(row.periodEnd);
   }
+  Object.assign(response, publicSnapshot(row));
   if (row.lines.length > 0) {
     response.lines = storedLines(row.lines);
   }
   return response;
+}
+
+function publicSnapshot(row: InvoiceRow): {
+  supplierAddressLine1?: string;
+  supplierAddressLine2?: string;
+  supplierTown?: string;
+  supplierPostcode?: string;
+  recipientAddressLine1?: string;
+  recipientAddressLine2?: string;
+  recipientTown?: string;
+  recipientPostcode?: string;
+} {
+  const supplier = storedAddress({
+    addressLine1: row.supplierAddressLine1,
+    addressLine2: row.supplierAddressLine2,
+    town: row.supplierTown,
+    postcode: row.supplierPostcode,
+  });
+  const recipient = storedAddress({
+    addressLine1: row.recipientAddressLine1,
+    addressLine2: row.recipientAddressLine2,
+    town: row.recipientTown,
+    postcode: row.recipientPostcode,
+  });
+  const fields: {
+    supplierAddressLine1?: string;
+    supplierAddressLine2?: string;
+    supplierTown?: string;
+    supplierPostcode?: string;
+    recipientAddressLine1?: string;
+    recipientAddressLine2?: string;
+    recipientTown?: string;
+    recipientPostcode?: string;
+  } = {};
+  if (supplier !== null) {
+    fields.supplierAddressLine1 = supplier.addressLine1;
+    fields.supplierTown = supplier.town;
+    fields.supplierPostcode = supplier.postcode;
+    if (supplier.addressLine2 !== undefined) {
+      fields.supplierAddressLine2 = supplier.addressLine2;
+    }
+  }
+  if (recipient !== null) {
+    fields.recipientAddressLine1 = recipient.addressLine1;
+    fields.recipientTown = recipient.town;
+    fields.recipientPostcode = recipient.postcode;
+    if (recipient.addressLine2 !== undefined) {
+      fields.recipientAddressLine2 = recipient.addressLine2;
+    }
+  }
+  return fields;
 }
 
 function toPreview(draft: InvoiceDraft): InvoicePreviewResponse {
@@ -433,6 +505,7 @@ export class InvoicesService {
       periodEnd: periodBounds.periodEnd,
       lines,
       amountPence: invoiceLinesTotalPence(lines),
+      address: recipient.address,
     };
   }
 
@@ -440,7 +513,12 @@ export class InvoicesService {
     db: Prisma.TransactionClient,
     userId: number,
     input: InvoiceRequest,
-  ): Promise<{ recipientName: string; workplaceId?: number; clientId?: number }> {
+  ): Promise<{
+    recipientName: string;
+    workplaceId?: number;
+    clientId?: number;
+    address: PostalAddress | null;
+  }> {
     if (input.recipientKind === 'client') {
       if (input.clientId === undefined || input.workplaceId !== undefined) {
         throw new BadRequestException('Recipient does not take that id');
@@ -451,7 +529,11 @@ export class InvoicesService {
       if (client === null) {
         throw new NotFoundException(`Client ${input.clientId} not found`);
       }
-      return { recipientName: client.name, clientId: client.id };
+      return {
+        recipientName: client.name,
+        clientId: client.id,
+        address: storedAddress(client),
+      };
     }
     if (input.workplaceId === undefined || input.clientId !== undefined) {
       throw new BadRequestException('Recipient does not take that id');
@@ -465,7 +547,11 @@ export class InvoicesService {
     if (workplace.kind !== input.recipientKind) {
       throw new BadRequestException('Workplace kind does not match recipient');
     }
-    return { recipientName: workplace.name, workplaceId: workplace.id };
+    return {
+      recipientName: workplace.name,
+      workplaceId: workplace.id,
+      address: storedAddress(workplace),
+    };
   }
 
   private async insertInvoice(
@@ -477,6 +563,18 @@ export class InvoicesService {
       const draft = await this.buildDraft(tx, userId, input);
       if (draft.lines.length === 0) {
         throw new BadRequestException('No records to invoice for this recipient and period');
+      }
+      const owner = await tx.user.findUnique({ where: { id: userId } });
+      if (owner === null) {
+        throw new UnauthorizedException();
+      }
+      const supplierAddress = storedAddress(owner);
+      if (supplierAddress === null) {
+        throw new BadRequestException('Add your business address before issuing an invoice');
+      }
+      const recipientAddress = draft.address;
+      if (recipientAddress === null) {
+        throw new BadRequestException('Add an address for this recipient before issuing an invoice');
       }
       const count = await tx.invoice.count({ where: { userId } });
       return tx.invoice.create({
@@ -493,6 +591,14 @@ export class InvoicesService {
           period: draft.period,
           periodStart: draft.periodStart,
           periodEnd: draft.periodEnd,
+          supplierAddressLine1: supplierAddress.addressLine1,
+          supplierAddressLine2: supplierAddress.addressLine2 ?? null,
+          supplierTown: supplierAddress.town,
+          supplierPostcode: supplierAddress.postcode,
+          recipientAddressLine1: recipientAddress.addressLine1,
+          recipientAddressLine2: recipientAddress.addressLine2 ?? null,
+          recipientTown: recipientAddress.town,
+          recipientPostcode: recipientAddress.postcode,
           lines: {
             create: draft.lines.map((line) => ({
               kind: line.kind,

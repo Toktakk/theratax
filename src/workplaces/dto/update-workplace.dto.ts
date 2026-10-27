@@ -1,8 +1,9 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsInt, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { HourExtraDto } from '../../hour-extras/hour-extra.dto.js';
+import { PostalAddressDto } from '../../postal-address/postal-address.dto.js';
 
-export class UpdateWorkplaceDto {
+export class UpdateWorkplaceDto extends PostalAddressDto {
   @IsString()
   @MinLength(1)
   @MaxLength(200)

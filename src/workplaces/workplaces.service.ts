@@ -3,6 +3,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
 import type { HourExtraResponse, StoredHourExtra } from '../hour-extras/hour-extra.js';
+import { addressData, publicAddress, readPostalAddress, storedAddress } from '../postal-address/postal-address.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateWorkplaceDto } from './dto/create-workplace.dto.js';
 import type { ListWorkplacesQueryDto } from './dto/list-workplaces-query.dto.js';
@@ -14,6 +15,10 @@ export interface WorkplaceResponse {
   kind: 'spa' | 'clinic';
   hourRatePence: number;
   hourExtras: HourExtraResponse[];
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +42,10 @@ interface WorkplaceRow {
   kind: 'spa' | 'clinic';
   hourRatePence: number;
   hourExtras: HourExtraRow[];
+  addressLine1: string | null;
+  addressLine2: string | null;
+  town: string | null;
+  postcode: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +65,7 @@ function toResponse(row: WorkplaceRow): WorkplaceResponse {
     kind: row.kind,
     hourRatePence: row.hourRatePence,
     hourExtras: hourExtrasResponse(row.hourExtras),
+    ...publicAddress(storedAddress(row)),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -73,6 +83,7 @@ export class WorkplacesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(user: PublicUser, input: CreateWorkplaceDto): Promise<WorkplaceResponse> {
+    const address = readPostalAddress(input);
     const name = input.name.trim();
     if (name.length === 0) {
       throw new BadRequestException('Name is required');
@@ -87,6 +98,7 @@ export class WorkplacesService {
           name,
           kind: input.kind,
           hourRatePence: input.hourRatePence,
+          ...addressData(address),
           ...(extras !== undefined ? { hourExtras: extras } : {}),
         },
         include: includeExtras,
@@ -123,6 +135,7 @@ export class WorkplacesService {
   }
 
   async update(user: PublicUser, id: number, input: UpdateWorkplaceDto): Promise<WorkplaceResponse> {
+    const address = readPostalAddress(input);
     const current = await this.findOwned(user.id, id);
     const name = input.name.trim();
     if (name.length === 0) {
@@ -136,6 +149,7 @@ export class WorkplacesService {
         data: {
           name,
           hourRatePence: input.hourRatePence,
+          ...addressData(address),
           hourExtras: {
             deleteMany: {},
             create: rows,

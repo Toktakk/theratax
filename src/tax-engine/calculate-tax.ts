@@ -32,7 +32,7 @@ export interface TaxCalculationInput {
   const ASSUMPTIONS = [
     'Rates are for England, Wales, and Northern Ireland for 2026–27. Scottish Income Tax is not applied.',
     'Trading profit is treated as the user\'s only income. The personal allowance of £12,570 is applied in full and is not tapered.',
-    'Cash basis: income counts when it is received, expenses when they are paid. Unpaid invoices are excluded.',
+    'Cash basis: income counts when the invoice is marked paid, expenses when they are paid. Logged income and unpaid invoices are excluded.',
     'Student loans, pension contributions, Marriage Allowance, and other reliefs are not applied.',
     'Class 2 National Insurance is not included in estimated tax owed. At or above £7,105 it is treated as paid. Below that, voluntary Class 2 is £3.65 a week and is not added here.',
     'Flat-rate vehicle costs use simplified mileage for a car or van (55p then 25p). Motorcycle rates are not applied.',

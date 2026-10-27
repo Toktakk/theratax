@@ -106,7 +106,20 @@ export default function App() {
         <Routes>
           <Route path="/" element={<FeedPage user={session.user} />} />
           <Route path="/workplaces" element={<DirectoryPage />} />
-          <Route path="/invoices" element={<InvoicePage />} />
+          <Route
+            path="/invoices"
+            element={
+              <InvoicePage
+                user={session.user}
+                onUserUpdated={(user) => {
+                  const ready = asReadyUser(user);
+                  if (ready !== null) {
+                    setSession({ status: 'ready', user: ready });
+                  }
+                }}
+              />
+            }
+          />
           <Route path="/tax" element={<TaxSummaryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

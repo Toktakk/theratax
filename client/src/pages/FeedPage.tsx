@@ -799,6 +799,9 @@ function SummaryFigures({ summary }: { summary: DailyIncomeSummary }) {
           <dd>{formatPounds(summary.totalPence)}</dd>
         </div>
       </dl>
+      <p className="muted">
+        These amounts stay on the feed. They are not included in the tax summary until the invoice is paid.
+      </p>
       {summary.byWorkplace.length === 0 ? null : (
         <div className="stack">
           <h3>By workplace</h3>

@@ -11,6 +11,10 @@ export interface User {
   practiceType: PracticeType | null;
   expenseMethod: ExpenseMethod | null;
   onboardedAt: string | null;
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
 }
 
 export interface ReadyUser {
@@ -20,6 +24,10 @@ export interface ReadyUser {
   practiceType: PracticeType;
   expenseMethod: ExpenseMethod;
   onboardedAt: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
 }
 
 export interface AuthResponse {
@@ -70,6 +78,10 @@ export interface Workplace {
   kind: WorkplaceKind;
   hourRatePence: number;
   hourExtras: HourExtra[];
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,6 +91,10 @@ export interface Client {
   name: string;
   hourRatePence: number;
   hourExtras: HourExtra[];
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  postcode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -188,6 +204,14 @@ export interface Invoice {
   period?: InvoicePeriod;
   periodStart?: string;
   periodEnd?: string;
+  supplierAddressLine1?: string;
+  supplierAddressLine2?: string;
+  supplierTown?: string;
+  supplierPostcode?: string;
+  recipientAddressLine1?: string;
+  recipientAddressLine2?: string;
+  recipientTown?: string;
+  recipientPostcode?: string;
   lines?: InvoiceLine[];
 }
 
@@ -233,5 +257,9 @@ export function asReadyUser(user: User): ReadyUser | null {
     practiceType: user.practiceType,
     expenseMethod: user.expenseMethod,
     onboardedAt: user.onboardedAt,
+    ...(user.addressLine1 !== undefined ? { addressLine1: user.addressLine1 } : {}),
+    ...(user.addressLine2 !== undefined ? { addressLine2: user.addressLine2 } : {}),
+    ...(user.town !== undefined ? { town: user.town } : {}),
+    ...(user.postcode !== undefined ? { postcode: user.postcode } : {}),
   };
 }

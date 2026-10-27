@@ -37,6 +37,10 @@ export class TaxEngineService {
           userId: user.id,
           type: 'income',
           occurredOn: { gte: PERIOD_START, lte: PERIOD_END },
+          OR: [
+            { invoice: { status: 'paid' } },
+            { invoiceLines: { some: { invoice: { status: 'paid' } } } },
+          ],
         },
         _sum: { amountPence: true },
       }),

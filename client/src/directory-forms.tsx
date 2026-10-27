@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react';
+import { AddressFields } from './address-fields.tsx';
+import {
+  addressError,
+  addressFromRecord,
+  addressPayload,
+  emptyAddress,
+} from './address.ts';
+import type { AddressDraft } from './address.ts';
 import { messageOf, request } from './api.ts';
 import { FormError } from './FormError.tsx';
 import {
@@ -22,6 +30,7 @@ export function SaveWorkplaceForm({
   const [picked, setPicked] = useState<WorkplaceKind>(kind ?? 'spa');
   const [hourPounds, setHourPounds] = useState('');
   const [hourPence, setHourPence] = useState('');
+  const [address, setAddress] = useState<AddressDraft>(emptyAddress());
   const [extras, setExtras] = useState<HourExtra[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -42,6 +51,11 @@ export function SaveWorkplaceForm({
       setError('Enter an hour rate.');
       return;
     }
+    const addressProblem = addressError(address);
+    if (addressProblem !== '') {
+      setError(addressProblem);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
@@ -52,11 +66,13 @@ export function SaveWorkplaceForm({
           kind: picked,
           hourRatePence: hourRate.amountPence,
           hourExtras: extrasPayload(extras),
+          ...addressPayload(address),
         },
       });
       setName('');
       setHourPounds('');
       setHourPence('');
+      setAddress(emptyAddress());
       setExtras([]);
       onCreated(created);
     } catch (caught: unknown) {
@@ -95,6 +111,7 @@ export function SaveWorkplaceForm({
         onPence={setHourPence}
       />
       <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
+      <AddressFields draft={address} onChange={setAddress} />
       {kind === undefined ? (
         <label className="field">
           Kind
@@ -133,6 +150,7 @@ export function EditWorkplaceForm({
   const [name, setName] = useState(workplace.name);
   const [hourPounds, setHourPounds] = useState(hour.pounds);
   const [hourPence, setHourPence] = useState(hour.pence);
+  const [address, setAddress] = useState<AddressDraft>(addressFromRecord(workplace));
   const [extras, setExtras] = useState<HourExtra[]>(workplace.hourExtras);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -147,6 +165,11 @@ export function EditWorkplaceForm({
       setError('Enter an hour rate.');
       return;
     }
+    const addressProblem = addressError(address);
+    if (addressProblem !== '') {
+      setError(addressProblem);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
@@ -156,6 +179,7 @@ export function EditWorkplaceForm({
           name: name.trim(),
           hourRatePence: hourRate.amountPence,
           hourExtras: extrasPayload(extras),
+          ...addressPayload(address),
         },
       });
       onSaved(updated);
@@ -187,6 +211,7 @@ export function EditWorkplaceForm({
         onPence={setHourPence}
       />
       <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
+      <AddressFields draft={address} onChange={setAddress} />
       <FormError message={error} />
       <div className="actions">
         <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
@@ -204,6 +229,7 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
   const [name, setName] = useState('');
   const [hourPounds, setHourPounds] = useState('');
   const [hourPence, setHourPence] = useState('');
+  const [address, setAddress] = useState<AddressDraft>(emptyAddress());
   const [extras, setExtras] = useState<HourExtra[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -218,6 +244,11 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
       setError('Enter an hour rate.');
       return;
     }
+    const addressProblem = addressError(address);
+    if (addressProblem !== '') {
+      setError(addressProblem);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
@@ -227,11 +258,13 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
           name: name.trim(),
           hourRatePence: hourRate.amountPence,
           hourExtras: extrasPayload(extras),
+          ...addressPayload(address),
         },
       });
       setName('');
       setHourPounds('');
       setHourPence('');
+      setAddress(emptyAddress());
       setExtras([]);
       onCreated(created);
     } catch (caught: unknown) {
@@ -268,6 +301,7 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
         onPence={setHourPence}
       />
       <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
+      <AddressFields draft={address} onChange={setAddress} />
       <FormError message={error} />
       <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
         {saving ? 'Saving…' : 'Save client'}
@@ -289,6 +323,7 @@ export function EditClientForm({
   const [name, setName] = useState(client.name);
   const [hourPounds, setHourPounds] = useState(hour.pounds);
   const [hourPence, setHourPence] = useState(hour.pence);
+  const [address, setAddress] = useState<AddressDraft>(addressFromRecord(client));
   const [extras, setExtras] = useState<HourExtra[]>(client.hourExtras);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -303,6 +338,11 @@ export function EditClientForm({
       setError('Enter an hour rate.');
       return;
     }
+    const addressProblem = addressError(address);
+    if (addressProblem !== '') {
+      setError(addressProblem);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
@@ -312,6 +352,7 @@ export function EditClientForm({
           name: name.trim(),
           hourRatePence: hourRate.amountPence,
           hourExtras: extrasPayload(extras),
+          ...addressPayload(address),
         },
       });
       onSaved(updated);
@@ -342,6 +383,7 @@ export function EditClientForm({
         onPence={setHourPence}
       />
       <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
+      <AddressFields draft={address} onChange={setAddress} />
       <FormError message={error} />
       <div className="actions">
         <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
