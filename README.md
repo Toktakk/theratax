@@ -1,124 +1,178 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# TheraTax
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+TheraTax is a bookkeeping app for a self-employed massage therapist in the UK. It records income and expenses, keeps a photo of a receipt when there is one, bills a spa, clinic, or client from those income rows, and estimates Income Tax and Class 4 National Insurance for the 2026–27 tax year.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+The figures are for planning. They are not a tax return and they are not advice.
 
-## Description
+## What you can do
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+1. Register and sign in. Choose a practice type (mobile, fixed location, or mixed) and a vehicle method (simplified mileage or actual vehicle costs). That choice is once.
+2. Save a business address, and correct it later from the profile.
+3. Log an income or expense in one request. Massage income can name a saved spa, clinic, or client, a massage type, hours, an additional fee, and a bonus typed on that row. The amount is base plus additional fee plus bonus. The hour rate lives on the workplace or the client.
+4. Attach one JPEG, PNG, or WebP (up to 10 MiB) to a row. The API returns a private link that lasts 15 minutes.
+5. See the day's massage income once: base, additional fees, and bonuses.
+6. Issue an invoice for one day or one month from the income already logged for that recipient. Download a PDF. Mark it paid. Paying it does not create a second income row. Tax counts that income when the invoice is paid.
+7. Read an estimated tax summary for 6 April 2026 through 5 April 2027.
 
-## Project setup
+Money on the API is an integer number of pence. £20 is `2000`. Civil dates are `DD-MM-YYYY` in `Europe/London`. Clock times are ISO 8601.
 
-```bash
-$ npm install
-```
+## Screens
 
-## Compile and run the project
+The client runs at `http://localhost:5173`.
 
-```bash
-# development
-$ npm run start
+| Path | Screen |
+| --- | --- |
+| `/` | Sign in. After onboarding, the same path is the feed. |
+| `/register` | Create an account. |
+| (no path) | Onboarding replaces the app until practice type and vehicle method are saved. |
+| `/workplaces` | Spas, clinics, and private clients, with an hour rate. |
+| `/invoices` | Preview, issue, pay, and download a PDF. |
+| `/tax` | Estimated tax for 2026–27. |
+| `/profile` | Account details and the business address. |
 
-# watch mode
-$ npm run start:dev
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/loginPage.png" alt="Sign in" width="280"><br>
+      <strong>Sign in</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/registerPage.png" alt="Create an account" width="280"><br>
+      <strong>Create an account</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/feedPage.png" alt="Feed" width="280"><br>
+      <strong>Feed</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/workplacesPage.png" alt="Workplaces" width="280"><br>
+      <strong>Workplaces</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/invoicesPage.png" alt="Invoices" width="280"><br>
+      <strong>Invoices</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/taxSummaryPage.png" alt="Estimated tax" width="280"><br>
+      <strong>Estimated tax</strong>
+    </td>
+  </tr>
+</table>
 
-# production mode
-$ npm run start:prod
-```
+A signed-in session is a bearer token in `localStorage`, sent as `Authorization: Bearer <token>`. It expires after 7 days.
 
-## Run tests
+## Stack
 
-```bash
-# unit tests
-$ npm run test
+- API: NestJS 12, TypeScript, Node.js 24, ESM (`"type": "module"`)
+- Database: PostgreSQL 16 through Prisma 7
+- Receipt files: S3-compatible storage (MinIO in Docker)
+- PDF: `pdf-lib`
+- Client: React 19, React Router 7, Vite
 
-# e2e tests
-$ npm run test:e2e
+There is no `/api` prefix. The HTTP contract is [`docs/api-spec.md`](docs/api-spec.md). The user flow is [`docs/01_user_flow.md`](docs/01_user_flow.md).
 
-# test coverage
-$ npm run test:cov
-```
+## Prerequisites
 
-## Deployment
+- Node.js 24
+- Docker, for Postgres and MinIO
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Run it locally
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
+From the repository root:
 
 ```bash
-$ npm install @nestjs/observe
+docker compose up -d
+npm install
+npm install --prefix client
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+Create `.env` in the repository root. Do not commit it.
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+```text
+DATABASE_URL=postgresql://theratax:theratax@localhost:5432/theratax_dev
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY=theratax
+S3_SECRET_KEY=theratax-secret
+S3_BUCKET=receipts
+```
 
-## Resources
+Those database and MinIO passwords match `docker-compose.yml`. They are for this machine only.
 
-Check out a few resources that may come in handy when working with NestJS:
+Apply the schema and generate the Prisma client. The generated client is not in git.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+npx prisma migrate dev
+npx prisma generate
+```
 
-## Support
+Start the API (port 3000) and the client (port 5173) in two terminals:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+npm run start:dev
+```
 
-## Stay in touch
+```bash
+npm run dev --prefix client
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+`GET http://localhost:3000/` returns the text `Hello World!`. That is the process check. Product routes are listed in the API spec. The browser allows the client origin `http://localhost:5173` only.
 
-## License
+On startup the API seeds the eight expense categories and creates the receipts bucket if it is missing. Categories are fixed. The browser suggests one from the note. There is no hint endpoint.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MinIO's console is `http://localhost:9001` (user `theratax`, password `theratax-secret`).
+
+## Tests
+
+```bash
+npm test                 # API unit tests
+npm run test:client      # client tests
+npm run test:e2e         # HTTP tests
+```
+
+End-to-end tests talk to a real Postgres database named `theratax_test` and refuse to reset any other database. Create it once, then migrate it. MinIO must be running, because the app opens the receipt store on startup.
+
+```bash
+docker compose exec postgres psql -U theratax -d theratax_dev -c 'CREATE DATABASE theratax_test'
+DATABASE_URL=postgresql://theratax:theratax@localhost:5432/theratax_test npx prisma migrate deploy
+```
+
+`npm run test:e2e` sets `DATABASE_URL` to that test database for the test process. Your `.env` still points the app you run by hand at `theratax_dev`.
+
+## Layout
+
+```text
+src/auth/                 register, login, session, onboarding, address
+src/expense-categories/   eight seeded categories
+src/transactions/         income and expenses, mileage, massage rows
+src/upload/               receipt images and 15-minute links
+src/invoices/             invoices from income rows, and the PDF
+src/tax-engine/           pure tax and mileage maths, and GET /tax/summary
+src/workplaces/           spas and clinics
+src/clients/              private clients
+src/income-summary/       one civil day's massage income
+src/prisma/               the only place that constructs the Prisma client
+prisma/schema.prisma
+client/src/pages/         the screens above
+docs/api-spec.md          HTTP contract
+```
+
+Handlers load rows and call pure functions for tax, mileage, the daily summary, and invoice lines. Those functions do not talk to the database.
+
+## Tax rules this build uses
+
+The tax year is only 2026–27 (6 April 2026 through 5 April 2027). Any other year is rejected.
+
+- Rates are for England, Wales, and Northern Ireland. Scottish Income Tax is not applied.
+- Trading profit is treated as the only income. The personal allowance is £12,570, applied in full.
+- Income counts when an invoice is marked paid. Expenses count when they are logged.
+- Class 4 National Insurance is included. Class 2 is not added to the estimate.
+- Flat-rate vehicle costs use simplified mileage for a car or van: 55p per mile for the first 10,000 business miles in the year, then 25p. Motorcycle rates are not applied.
+- The vehicle method cannot be changed after onboarding. Oils, HCPC fees, insurance, laundry, and public transport are an amount the user types under either method.
+
+## Out of scope
+
+VAT, emailing an invoice, recurring invoices, Scottish tax, student loans, other reliefs, motorcycle mileage, user-created categories, and any tax year other than 2026–27.
