@@ -24,6 +24,7 @@ import {
   invoiceLinesTotalPence,
   type BuiltInvoiceLine,
 } from './invoice-lines.js';
+import { nextInvoiceNumber } from './invoice-number.js';
 
 const PERIOD_START = Date.UTC(2026, 3, 6);
 const PERIOD_END = Date.UTC(2027, 3, 5);
@@ -142,10 +143,6 @@ interface InvoiceDraft {
 }
 
 type InvoiceRequest = CreateInvoiceDto | PreviewInvoiceQueryDto;
-
-function invoiceNumber(count: number): string {
-  return `TT-${String(count + 1).padStart(4, '0')}`;
-}
 
 function isUniqueConstraintViolation(error: unknown): boolean {
   return (
@@ -576,11 +573,11 @@ export class InvoicesService {
       if (recipientAddress === null) {
         throw new BadRequestException('Add an address for this recipient before issuing an invoice');
       }
-      const count = await tx.invoice.count({ where: { userId } });
+      const existing = await tx.invoice.findMany({ select: { number: true } });
       return tx.invoice.create({
         data: {
           userId,
-          number: invoiceNumber(count),
+          number: nextInvoiceNumber(existing.map((row) => row.number)),
           amountPence: draft.amountPence,
           issuedOn,
           status: 'issued',

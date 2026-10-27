@@ -92,6 +92,7 @@ describe('storedAddress', () => {
         postcode: null,
       }),
     ).toBeNull();
+    expect(storedAddress({})).toBeNull();
   });
 });
 

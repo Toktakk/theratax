@@ -17,10 +17,10 @@ export interface PostalAddress {
 }
 
 export interface AddressColumns {
-  addressLine1: string | null;
-  addressLine2: string | null;
-  town: string | null;
-  postcode: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  town?: string | null;
+  postcode?: string | null;
 }
 
 export function normaliseUkPostcode(value: string): string | null {
@@ -54,16 +54,16 @@ export function readPostalAddress(input: PostalAddressInput): PostalAddress {
 }
 
 export function storedAddress(row: AddressColumns): PostalAddress | null {
-  if (row.addressLine1 === null || row.town === null || row.postcode === null) {
+  const addressLine1 = row.addressLine1 ?? null;
+  const town = row.town ?? null;
+  const postcode = row.postcode ?? null;
+  if (addressLine1 === null || town === null || postcode === null) {
     return null;
   }
-  const address: PostalAddress = {
-    addressLine1: row.addressLine1,
-    town: row.town,
-    postcode: row.postcode,
-  };
-  if (row.addressLine2 !== null && row.addressLine2.length > 0) {
-    address.addressLine2 = row.addressLine2;
+  const address: PostalAddress = { addressLine1, town, postcode };
+  const line2 = row.addressLine2 ?? '';
+  if (line2.length > 0) {
+    address.addressLine2 = line2;
   }
   return address;
 }

@@ -138,7 +138,7 @@ model Receipt {
 
 model Invoice {
   id            Int                   @id @default(autoincrement())
-  number        String
+  number        String                @unique
   clientName    String?
   service       String?
   amountPence   Int
@@ -167,7 +167,7 @@ model Invoice {
   transaction   Transaction?
   lines         InvoiceLine[]
 
-  @@unique([userId, number])
+  @@index([userId])
 }
 
 model Workplace {

@@ -389,7 +389,7 @@ interface CreateInvoice {
 ```ts
 interface Invoice {
   id: number;
-  number: string;            // "TT-0001", per user, starting at 1, at least 4 digits
+  number: string;            // "TT-0001", unique across all invoices, TT- plus at least 4 digits
   clientName: string;
   service: string;
   amountPence: number;

@@ -10,7 +10,6 @@ import {
   expenseMethodLabel,
   formatHours,
   formatPounds,
-  formatRateText,
   hoursLabel,
   isMassageType,
   MASSAGE_OPTIONS,
@@ -553,15 +552,14 @@ export function FeedPage({ user }: FeedPageProps) {
                   <optgroup label="Workplaces">
                     {workplaces.map((workplace) => (
                       <option key={`workplace-${workplace.id}`} value={`workplace:${workplace.id}`}>
-                        {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
-                        {formatRateText(workplace.hourRatePence, workplace.hourExtras)}
+                        {workplace.name}
                       </option>
                     ))}
                   </optgroup>
                   <optgroup label="Clients">
                     {clients.map((client) => (
                       <option key={`client-${client.id}`} value={`client:${client.id}`}>
-                        {client.name} · {formatRateText(client.hourRatePence, client.hourExtras)}
+                        {client.name}
                       </option>
                     ))}
                   </optgroup>
@@ -1092,15 +1090,14 @@ function IncomeEditForm({
                 <optgroup label="Workplaces">
                   {workplaces.map((workplace) => (
                     <option key={`workplace-${workplace.id}`} value={`workplace:${workplace.id}`}>
-                      {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
-                      {formatRateText(workplace.hourRatePence, workplace.hourExtras)}
+                      {workplace.name}
                     </option>
                   ))}
                 </optgroup>
                 <optgroup label="Clients">
                   {clients.map((client) => (
                     <option key={`client-${client.id}`} value={`client:${client.id}`}>
-                      {client.name} · {formatRateText(client.hourRatePence, client.hourExtras)}
+                      {client.name}
                     </option>
                   ))}
                 </optgroup>

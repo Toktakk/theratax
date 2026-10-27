@@ -61,6 +61,7 @@ export function InvoicePage({
   const [saving, setSaving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [payingId, setPayingId] = useState<number | null>(null);
+  const [payDate, setPayDate] = useState<{ id: number; value: string } | null>(null);
   const [pdfId, setPdfId] = useState<number | null>(null);
   const [rowError, setRowError] = useState<{ id: number; message: string } | null>(null);
   const [recipientKind, setRecipientKind] = useState<RecipientKind | ''>('');
@@ -243,15 +244,28 @@ export function InvoicePage({
     }
   }
 
-  async function pay(invoice: Invoice) {
+  async function pay(invoice: Invoice, receivedOn: string) {
+    const paidOn = civilDateFromInput(receivedOn);
+    if (paidOn === undefined) {
+      setRowError({ id: invoice.id, message: 'Enter the date the money arrived.' });
+      return;
+    }
+    if (isBeforeCivilDate(paidOn, invoice.issuedOn)) {
+      setRowError({
+        id: invoice.id,
+        message: `This bill is dated ${invoice.issuedOn}. Enter the day the money arrived, on or after that date.`,
+      });
+      return;
+    }
     setPayingId(invoice.id);
     setRowError(null);
     try {
       const updated = await request<Invoice>(`/invoices/${invoice.id}`, {
         method: 'PATCH',
-        json: { status: 'paid' },
+        json: { status: 'paid', paidOn },
       });
       setInvoices((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setPayDate(null);
     } catch (error: unknown) {
       setRowError({ id: invoice.id, message: messageOf(error) });
     } finally {
@@ -486,7 +500,9 @@ export function InvoicePage({
               setIssuedOn(event.target.value);
             }}
           />
-          <span className="muted">Leave blank for today.</span>
+          <span className="muted">
+            Leave blank for today. This is the date on the bill, not the day the spa pays you.
+          </span>
         </label>
         <PreviewBlock
           loading={previewLoading}
@@ -516,6 +532,7 @@ export function InvoicePage({
               </p>
             ) : null}
             <p className="amount">{formatPounds(invoice.amountPence)}</p>
+            <p>Issued on {invoice.issuedOn}</p>
             <p>Status: {invoice.status}</p>
             {invoice.paidOn === undefined ? null : <p>Paid on {invoice.paidOn}</p>}
             <div className="actions">
@@ -529,19 +546,59 @@ export function InvoicePage({
               >
                 {pdfId === invoice.id ? 'Downloading…' : 'PDF'}
               </button>
-              {invoice.status === 'issued' ? (
+              {invoice.status === 'issued' && payDate?.id !== invoice.id ? (
                 <button
                   className="button-primary"
                   type="button"
-                  disabled={payingId === invoice.id}
                   onClick={() => {
-                    void pay(invoice);
+                    setRowError(null);
+                    setPayDate({ id: invoice.id, value: londonDateInput(new Date()) });
                   }}
                 >
-                  {payingId === invoice.id ? 'Paying…' : 'Pay'}
+                  Pay
                 </button>
               ) : null}
             </div>
+            {invoice.status === 'issued' && payDate?.id === invoice.id ? (
+              <label className="field">
+                Date received
+                <input
+                  type="date"
+                  value={payDate.value}
+                  disabled={payingId === invoice.id}
+                  onChange={(event) => {
+                    setPayDate({ id: invoice.id, value: event.target.value });
+                  }}
+                />
+                <span className="muted">
+                  The day the money arrived. A spa can pay two weeks after the work, or at the end of
+                  the month. This day has to be on or after {invoice.issuedOn}.
+                </span>
+                <div className="actions">
+                  <button
+                    className="button-primary"
+                    type="button"
+                    disabled={payingId === invoice.id}
+                    onClick={() => {
+                      void pay(invoice, payDate.value);
+                    }}
+                  >
+                    {payingId === invoice.id ? 'Paying…' : 'Mark paid'}
+                  </button>
+                  <button
+                    className="button-ghost"
+                    type="button"
+                    disabled={payingId === invoice.id}
+                    onClick={() => {
+                      setPayDate(null);
+                      setRowError(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </label>
+            ) : null}
             {rowError?.id === invoice.id ? <FormError message={rowError.message} /> : null}
           </article>
         ))}
@@ -702,6 +759,39 @@ function buildDraft(input: {
     draft.issuedOn = issued;
   }
   return draft;
+}
+
+function londonDateInput(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).formatToParts(now);
+  const day = parts.find((part) => part.type === 'day')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const year = parts.find((part) => part.type === 'year')?.value;
+  if (day === undefined || month === undefined || year === undefined) {
+    return '';
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function isBeforeCivilDate(left: string, right: string): boolean {
+  const leftKey = civilSortKey(left);
+  const rightKey = civilSortKey(right);
+  if (leftKey === undefined || rightKey === undefined) {
+    return false;
+  }
+  return leftKey < rightKey;
+}
+
+function civilSortKey(value: string): string | undefined {
+  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
+  if (match === null) {
+    return undefined;
+  }
+  return `${match[3]}${match[2]}${match[1]}`;
 }
 
 function wholeId(value: string): number | undefined {
