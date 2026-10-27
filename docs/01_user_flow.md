@@ -2,7 +2,7 @@
 
 1. **Onboarding** (one-time) — choose business type, Flat Rate vs Actual Cost
 2. **Feed** (fast, frequent) — log income or an expense in one request. Massage income can name a saved spa or clinic, a massage type, a base amount, an additional fee, a bonus the user types, and a note. A photo is not required. The same feed lists income before expenses. The daily summary adds base, additional fees, and bonuses once. Total massage income is base plus additional fee plus bonus.
-3. **Attach receipt** (optional) — a photo linked to a transaction, in a second request, when there is a photo. Expenses can still use it. Income can be saved with no image.
+3. **Attach receipt** (optional) — one photo of a receipt or a payment slip, linked to that transaction in a second request, when there is a photo. A camera capture and a file picker send the same image. Expenses can still use it. Income can be saved with no image.
 4. **Create invoice** (occasional) — choose a saved spa, clinic, or client, and a day or a month. The bill is built from the income rows for that recipient and period, including each row's additional fee and bonus once, then exported as a PDF. Creating or paying the invoice does not record that work a second time.
 5. **Tax summary** (occasional) — net profit and estimated tax from the income and expense rows. A bonus is already inside the income amount, so it is not added again.
 

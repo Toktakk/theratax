@@ -182,7 +182,7 @@ interface Transaction {
 }
 ```
 
-`hasReceipt` is always present because the feed renders "attach receipt" from the list payload. A second request per row would break the 30–60 second path. The other keys are omitted when they do not apply, so a cash income row stays small.
+`hasReceipt` is always present because the feed renders the camera state from the list payload. It is `true` when the one receipt or payment-slip photo is stored. The list does not include a file URL. A second request per row would break the 30–60 second path. The other keys are omitted when they do not apply, so a cash income row stays small.
 
 ```ts
 interface CreateTransaction {
@@ -297,12 +297,19 @@ Creating, updating, or deleting a mileage row recomputes **every** mileage row i
 
 ## Receipt (flow step 3; proposal: upload)
 
-A photo is optional. `POST /transactions` never takes a file. Saving income or an expense with no upload returns `201` and `hasReceipt: false`, and it does not create a `Receipt` row. The upload routes stay for any transaction that has a photo, including expenses.
+A photo is optional. `POST /transactions` never takes a file. Saving income or an expense with no upload returns `201` and `hasReceipt: false`, and it does not create a `Receipt` row. The upload routes stay for any transaction that has a photo, including expenses. The photo may be a receipt or a payment slip. The transaction keeps one image, not one of each.
 
-One photo per transaction. `POST /transactions/:id/receipt` is `multipart/form-data` with a single field `file`.
+`POST /transactions/:id/receipt` is `multipart/form-data` with a single field `file`. The bytes are the image a camera capture or a file picker produced. The request has no filesystem path. Bearer authentication and completed onboarding are required, as for the other transaction routes.
 
-- Content type: `image/jpeg`, `image/png`, or `image/webp`
-- Size: 1 byte through 10 MiB (`10 * 1024 * 1024`)
+The server reads the bytes. It does not trust the multipart type or the filename. A camera blob may arrive as `application/octet-stream` or with an empty type. The stored `contentType` is the type detected from the bytes:
+
+- `image/jpeg`
+- `image/png`
+- `image/webp`
+
+HEIC is rejected. A camera capture has to be sent as one of those three.
+
+Size: 1 byte through 10 MiB (`10 * 1024 * 1024`). The limit is `MAX_RECEIPT_BYTES` in the upload module. The multer limit and the service use that same value.
 
 `201`:
 
@@ -314,7 +321,9 @@ interface Receipt {
 }
 ```
 
-A second upload replaces the photo. The object is private. The response has no URL.
+`contentType` is the detected type. The body has no `url` and no storage key. A second upload replaces the photo and returns `201` again. There is still one receipt row, so a retry does not add another and the response is not `409`.
+
+The object is private. The server generates the storage key. An existing row whose key was stored earlier still opens.
 
 `GET /transactions/:id/receipt` returns `200`:
 
@@ -325,9 +334,15 @@ interface ReceiptUrl {
 }
 ```
 
-The client uses `url` as an image source. The API does not stream the bytes and does not return a permanent public URL.
+The client uses `url` as an image source. The API does not stream the bytes and does not return a permanent public URL. The signature lifetime is 900 seconds. `hasReceipt` on the transaction is how the client knows a photo is saved without requesting this link.
 
-No photo yet, and the transaction exists: `404` `{ "message": "Receipt for transaction <id> not found", "error": "Not Found", "statusCode": 404 }`. Missing transaction: `404` `{ "message": "Transaction <id> not found", ... }`, including on upload and delete. `DELETE` of an existing photo returns `204`.
+No photo yet, and the transaction exists: `404` `{ "message": "Receipt for transaction <id> not found", "error": "Not Found", "statusCode": 404 }`. Missing transaction, including another user's id: `404` `{ "message": "Transaction <id> not found", ... }`, on upload, on the link, and on delete. `DELETE` of an existing photo returns `204`.
+
+A missing file, an empty file, a file over 10 MiB, a type outside the three images, or bytes that are not a complete image of that type: `400` `{ "message": "Receipt must be an image up to 10 MiB", "error": "Bad Request", "statusCode": 400 }`.
+
+Saving the object or the receipt row failed: `500` `{ "message": "Receipt could not be stored", "error": "Internal Server Error", "statusCode": 500 }`. The receipt row is unchanged. Signing the link failed: `500` `{ "message": "Receipt could not be opened", ... }`. Deleting the stored image failed: `500` `{ "message": "Receipt could not be removed", ... }`.
+
+No new receipt column is required. The row already stores the transaction, the detected content type, the byte size, and the storage key.
 
 ## Invoice (flow step 4; proposal: Invoice)
 
@@ -663,7 +678,7 @@ Postman, after steps 13–16: save a spa, log Swedish income of base `6000`, fee
 Every error body carries `message`, because that is the field a client has to read. Two shapes occur, and the client must accept both:
 
 - DTO validation (`ValidationPipe`, with whitelist and `forbidNonWhitelisted`): `message` is an array of strings.
-- A deliberate `400` / `401` / `403` / `404` / `409`: `message` is a string.
+- A deliberate `400` / `401` / `403` / `404` / `409` / `500`: `message` is a string. Receipt storage uses the `500` strings in the Receipt section.
 
 ```json
 {
@@ -704,6 +719,9 @@ The same shape uses `Invoice <id> not found`. Receipt wording is in the Receipt 
 | Duplicate workplace or client name for this user | 409 | `Workplace already saved` or `Client already saved` |
 | Delete a client that a transaction or invoice still uses | 409 | `Client is used by a record` |
 | Unknown id, including another user's id | 404 | `<Resource> <id> not found` |
+| Receipt image could not be saved | 500 | `Receipt could not be stored` |
+| Receipt link could not be signed | 500 | `Receipt could not be opened` |
+| Receipt image could not be deleted | 500 | `Receipt could not be removed` |
 
 ## Out of scope
 

@@ -8,15 +8,15 @@ The feed can already log money, but item 3 of the flow is attaching a photo to t
 
 ## Not in this step
 
-Do not create invoices, and do not build React pages. Opening the link uses Postman or a browser hitting the URL you received.
+Do not create invoices, and do not build React pages. Opening the link uses Postman or a browser hitting the URL you received. Do not add a payment-slip route, a second image table, or a migration. A payment slip uses the receipt routes already in this step.
 
 ## Concept
 
 Saving a transaction does not require a photograph. `POST /transactions` has no file field. An income row can be created with `hasReceipt: false` and no `Receipt` row. These upload routes stay for expenses and for any transaction that does have a photo. Do not remove the upload module because massage income does not use a picture.
 
-One transaction can have one image. `POST /transactions/:id/receipt` is `multipart/form-data`. The field name is `file`.
+One transaction can have one image. That image is a receipt or a payment slip, not both. `POST /transactions/:id/receipt` is `multipart/form-data`. The field name is `file`. The bytes may come from a camera capture or from a file picker. The server does not take a filesystem path.
 
-- Accepted types: `image/jpeg`, `image/png`, `image/webp`
+- Accepted types: `image/jpeg`, `image/png`, `image/webp`. HEIC is rejected, so a camera sends one of these three.
 - Size: 1 byte up to 10 MiB, which is `10 * 1024 * 1024`
 
 Success is `201` with no URL.
@@ -29,7 +29,7 @@ interface Receipt {
 }
 ```
 
-A second upload replaces the previous image and gets `201` again. The storage key is `receipts/<userId>/<transactionId>`, so it overwrites the same object.
+A second upload replaces the previous image and gets `201` again. There is still one `Receipt` row, so the response is not `409`. The new storage key is `receipts/<userId>/<transactionId>/<objectId>`. `objectId` is generated. It is never the original filename. After the row points at the new key, delete the previous object. A row that already uses `receipts/<userId>/<transactionId>` still opens. Do not rewrite those rows. There is no new column and no migration.
 
 The object is private, so the `POST` response has no URL. `GET /transactions/:id/receipt` gets `200`.
 
@@ -49,6 +49,8 @@ There is no image yet, but the transaction exists. Respond `404`.
 ```
 
 There is no transaction, or the transaction belongs to someone else. Respond `404` with the message `Transaction <id> not found`, on upload, on asking for the link, and on delete. `DELETE` when an image exists gets `204` and no body.
+
+Saving the object or the receipt row failed. Respond `500` with `Receipt could not be stored`. The receipt row is unchanged. Signing the link failed. Respond `500` with `Receipt could not be opened`. Deleting the stored image failed. Respond `500` with `Receipt could not be removed`.
 
 These paths require onboarding. Otherwise they are `403` with the same message, and they require Bearer.
 
@@ -92,11 +94,11 @@ S3_BUCKET=receipts
 
 When the module starts, create the bucket if it does not exist. If the error says it already exists, continue. Do not set a policy that makes the bucket public.
 
-`FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } })` stops a large file before the handler. If multer throws `MulterError`, in particular the code `LIMIT_FILE_SIZE`, the filter responds `400` with the message `Receipt must be an image up to 10 MiB`. The shape is a string in `message`, from an exception you threw on purpose, not an array from the pipe. The contract locks the status for a wrong type or an oversized file at 400, and this lesson uses this sentence.
+`FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } })` stops a large file before the handler. `MAX_RECEIPT_BYTES` is `10 * 1024 * 1024`, in one place, and the service uses that same constant. If multer throws `MulterError`, in particular the code `LIMIT_FILE_SIZE`, the filter responds `400` with the message `Receipt must be an image up to 10 MiB`. The shape is a string in `message`, from an exception you threw on purpose, not an array from the pipe. The contract locks the status for a wrong type, a malformed image, or an oversized file at 400, and this lesson uses this sentence. The interceptor keeps the file in memory so the bytes can be checked. Do not switch it to disk storage.
 
-In the service, if there is no file, or `size` is less than 1, respond `400` with the same sentence. If `mimetype` is not one of the three types above, respond `400` with the same sentence. Then `PutObject` with `Body` as the buffer and `ContentType` as the file's type, then `upsert` the `Receipt` row.
+Find this user's transaction first. A missing row is the transaction message, including when the file would also be rejected. Then reject a missing file, a size below 1 byte, a size above `MAX_RECEIPT_BYTES`, or bytes that are not a complete JPEG, PNG, or WebP, with the same `400` sentence. Read the type from the bytes. A camera blob may send `application/octet-stream` or an empty type. Those are accepted when the bytes are one of the three images. `ContentType` on `PutObject`, and `contentType` on the row, are the detected type. Ignore the filename.
 
-The lookup order is: find this user's transaction first. If it is missing, that is the transaction message. If it exists but there is no receipt, that is the receipt message. Delete calls `DeleteObject`, then deletes the row.
+`PutObject` the new key first. If that write fails, respond `500` with `Receipt could not be stored` and do not write a row. Then `upsert` on `transactionId`. If the upsert fails, `DeleteObject` the new key, leave the previous object in place, and respond `500` with the same sentence. A retry writes a new object id and upserts the same row. After the upsert succeeds, delete the previous object when its key differs. A link is signed only for a key shaped like the two forms above. Delete calls `DeleteObject`, then deletes the row. If there is no receipt, that is the receipt message.
 
 `hasReceipt` on `GET /transactions` must be `true` after upload and `false` again after delete. The mapper from [step 8](10_step08_log_income_and_expenses.md) already does this if the query includes the `receipt` relation.
 
@@ -111,6 +113,11 @@ This domain's folder is `src/upload/`, following the project layout, even though
 - `src/upload/receipts.service.ts`
 - `src/upload/receipt-upload.filter.ts`
 - `src/upload/upload.module.ts`
+- `src/upload/receipt-limits.ts` holds the size and the client messages
+- `src/upload/image-type.ts` reads JPEG, PNG, and WebP bytes
+- `src/upload/receipt-storage-key.ts` builds and checks storage keys
+- `src/upload/receipt-link.ts` sets the 15-minute expiry
+- `src/upload/store-receipt.ts` uploads, opens, and removes one photo
 - `src/app.module.ts` adds `UploadModule`
 
 The module imports `AuthModule`. The whole controller class has `@UseGuards(AuthGuard)` and `@UseFilters(ReceiptUploadFilter)`. Every method calls `assertOnboarded` first.
@@ -171,9 +178,13 @@ A transaction that still has no image gets `404` and the message `Receipt for tr
 
 In the transaction list, the uploaded row has `hasReceipt: true`.
 
-`POST /transactions` with `{"type":"income","amountPence":100}` and no file gets `201`, `hasReceipt` of `false`, and no receipt row for that id. `GET /transactions/{{thatId}}/receipt` gets `404`.
+`POST /transactions` with `{"type":"income","amountPence":100}` and no file gets `201`, `hasReceipt` of `false`, and no receipt row for that id. `GET /transactions/{{thatId}}/receipt` gets `404`. An expense with no file does the same.
+
+A JPEG whose multipart type is `application/octet-stream` gets `201` and `contentType` `image/jpeg`. A file that only starts with JPEG bytes, and a PNG whose bytes were altered, get `400` and `Receipt must be an image up to 10 MiB`. Another user's transaction id gets `404` and `Transaction <id> not found`.
 
 No Bearer gets `401`. If you are not onboarded, you get `403`.
+
+`npm test` covers the same checks without MinIO: a valid image, a rejected type, a file over the limit, malformed bytes, a missing transaction, another user's id, an authorized link, the 900-second expiry, a transaction with no image, a second upload that still leaves one row, a failed save that does not replace the previous photo, and a retry that upserts the same transaction.
 
 ## If it fails
 
@@ -182,6 +193,7 @@ No Bearer gets `401`. If you are not onboarded, you get `403`.
 - `expiresAt` is hours or days away: `expiresIn` is not 900 seconds.
 - A large file gets 500: `MulterError` is not yet caught as 400.
 - Someone else's image opens: you forgot to filter `userId` when finding the transaction.
+- A renamed text file is accepted: the handler trusted `mimetype` or the filename. Read the bytes.
 - The bucket can be read with no signature: a public policy is in place. Remove it. The object must open only through a link that was just signed.
 
 **Pass this step, then continue.**

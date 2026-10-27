@@ -33,7 +33,7 @@ The entry card comes before the list. Where Income and Expense appear together, 
 
 The daily summary sits with the list for the selected date. It shows base, additional fees, bonus, and the daily total, then the workplace breakdown and the massage-type breakdown.
 
-A row shows the civil date, Income or Expense, the note, and the money as pounds. A massage row also shows the workplace or client name from the loaded lists, the massage name, the hours, the computed base, the additional fee, and the bonus. A mileage row shows the miles next to the money the server calculated. A row with `hasReceipt: false` has a file picker, not a required photo. A row with a receipt shows the image after a fresh link.
+A row shows the civil date, Income or Expense, the note, and the money as pounds. A massage row also shows the workplace or client name from the loaded lists, the massage name, the hours, the computed base, the additional fee, and the bonus. A mileage row shows the miles next to the money the server calculated. A row with `hasReceipt: false` has a file picker, not a required photo. The browser may fill that file from the camera. A payment slip is this same photo. A row with a receipt shows the image after a fresh link.
 
 On a massage entry the field order is type, date, massage type, workplace or client, the custom name when Other is selected, Hours, Additional Massage Fee, Bonus, then Note. Expense and cash income keep Note at the bottom of the form, after the amount or the miles, and the expense hint stays under that note.
 
@@ -116,7 +116,7 @@ A fee or a bonus without a massage type is `400` with the fee or bonus message a
 
 `type` is not accepted on `PATCH`. Sending it is `400` from the pipe.
 
-A photo that is not an image is `400`. The row stays without a receipt. Saving the income row itself still succeeded.
+A photo whose bytes are not a complete JPEG, PNG, or WebP is `400`. The row stays without a receipt. Saving the income row itself still succeeded. A camera blob is still the multipart field `file`.
 
 ## Business logic and calculations
 
@@ -151,7 +151,7 @@ Income and expense are one `Transaction`. Relevant fields: `type`, `occurredOn`,
 
 `POST /transactions` returns `201`. Cash income omits the massage keys. A massage response includes `bonusPence` and `additionalFeePence`, including `0`. `hasReceipt` is `false` until a photo is attached. `createdAt` and `updatedAt` are ISO 8601.
 
-`POST /transactions/:id/receipt` is multipart field `file`. Do not set `Content-Type` yourself. `GET /transactions/:id/receipt` returns a `url` that expires in 15 minutes. Do not store that URL in `localStorage`. Opening the row again asks for a new link.
+`POST /transactions/:id/receipt` is multipart field `file`. A camera capture and a file picker both use that field. A payment slip uses it too. Do not set `Content-Type` yourself. Do not send a filesystem path. `GET /transactions/:id/receipt` returns a `url` that expires in 15 minutes. Do not store that URL in `localStorage`. Opening the row again asks for a new link. `hasReceipt` is how the row knows a photo is saved. The list has no file URL.
 
 `GET /income/summary?date=DD-MM-YYYY` returns `date`, `basePence`, `additionalFeePence`, `bonusPence`, `totalPence`, `byWorkplace`, and `byMassageType`. An omitted `date` is today in `Europe/London`. An empty day is `200` with every pence field `0` and both arrays empty.
 
@@ -166,7 +166,7 @@ A transaction that has `invoiceId` is immutable. `PATCH` or `DELETE` is `409` `I
 - Success clears the entry fields, reloads the list and the summary, and focuses the note. The new income row appears above expenses on that day. `hasReceipt` is false. No photo was required.
 - A save error shows `FormError` and keeps the typed values. The button is enabled again.
 - A list or summary error shows the message and leaves the form usable.
-- A rejected file shows the `400` message on that row. The row remains saved.
+- A rejected file shows the `400` message on that row. The row remains saved. A storage failure shows the `500` message. The row gains a photo only after `201`.
 - A failed workplace or client list shows the message beside the workplace or client choice. The rest of the form stays usable. This page does not save those names.
 
 ## Security and data-access considerations
@@ -192,7 +192,7 @@ Lists and creates are limited to the token user. Another user's workplace, clien
 - The summary for that date shows base `5000`, additional fee `200`, bonus `500`, and total `5700`. The workplace breakdown and the Swedish breakdown each include the bonus once. The top-level total is not `11400` and not `5200`.
 - An issued invoice does not change the summary.
 - Deleting the massage row drops the base, the fee, and the bonus together.
-- Save succeeds with no file chosen. A JPEG then appears on the row. A `.txt` file is rejected and the row stays saved.
+- Save succeeds with no file chosen. A JPEG then appears on the row. A camera photo uses that same upload. A `.txt` file is rejected and the row stays saved.
 - `oils` suggests Oils and consumables before save. Mileage still sends miles and not `amountPence`.
 
 ## Dependencies on other pages or shared components

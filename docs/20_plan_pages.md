@@ -65,7 +65,7 @@ Civil dates are `DD-MM-YYYY`. A blank date on a create is today in `Europe/Londo
 - The daily summary, the tax summary, and an invoice each include that bonus once. They do not add `amountPence` on top of the three parts, and they do not add the bonus again beside `amountPence`.
 - Massage Type includes Body Scrub (`body_scrub`). Other asks for a custom name.
 - A workplace or a client is saved once and reused by id. An income row does not create a second copy of the name.
-- Saving income or an expense does not require a photo. The photo is a later request on that row.
+- Saving income or an expense does not require a photo. The photo is a later request on that row. It may be a receipt or a payment slip. There is one photo per transaction.
 - A new invoice is a snapshot of matching income rows. Creating it or marking it paid does not insert another income row.
 
 ## Status

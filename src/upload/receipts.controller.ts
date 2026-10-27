@@ -17,11 +17,10 @@ import { assertOnboarded } from '../auth/assert-onboarded.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { PublicUser } from '../auth/public-user.js';
+import { MAX_RECEIPT_BYTES } from './receipt-limits.js';
 import { ReceiptUploadFilter } from './receipt-upload.filter.js';
 import { ReceiptsService } from './receipts.service.js';
 import type { Receipt, ReceiptUrl } from './receipts.service.js';
-
-const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 
 @Controller('transactions')
 @UseGuards(AuthGuard)

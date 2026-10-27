@@ -1,4 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  OnModuleInit,
+} from '@nestjs/common';
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
@@ -7,8 +11,13 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
-const SIGNED_URL_SECONDS = 900;
+import { receiptLinkExpiry } from './receipt-link.js';
+import {
+  RECEIPT_OPEN_MESSAGE,
+  RECEIPT_REMOVE_MESSAGE,
+  RECEIPT_STORAGE_MESSAGE,
+} from './receipt-limits.js';
+import { isReceiptStorageKey } from './receipt-storage-key.js';
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -73,39 +82,58 @@ export class UploadService implements OnModuleInit {
     body: Buffer,
     contentType: string,
   ): Promise<void> {
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-      }),
-    );
+    this.assertKey(key, RECEIPT_STORAGE_MESSAGE);
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+        }),
+      );
+    } catch {
+      throw new InternalServerErrorException(RECEIPT_STORAGE_MESSAGE);
+    }
   }
 
   async deleteObject(key: string): Promise<void> {
-    await this.client.send(
-      new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      }),
-    );
+    this.assertKey(key, RECEIPT_REMOVE_MESSAGE);
+    try {
+      await this.client.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+    } catch {
+      throw new InternalServerErrorException(RECEIPT_REMOVE_MESSAGE);
+    }
   }
 
   async signedReadUrl(
     key: string,
   ): Promise<{ url: string; expiresAt: string }> {
-    const url = await getSignedUrl(
-      this.client,
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      }),
-      { expiresIn: SIGNED_URL_SECONDS },
-    );
-    return {
-      url,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-    };
+    this.assertKey(key, RECEIPT_OPEN_MESSAGE);
+    const expiry = receiptLinkExpiry(Date.now());
+    try {
+      const url = await getSignedUrl(
+        this.client,
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+        { expiresIn: expiry.expiresIn },
+      );
+      return { url, expiresAt: expiry.expiresAt };
+    } catch {
+      throw new InternalServerErrorException(RECEIPT_OPEN_MESSAGE);
+    }
+  }
+
+  private assertKey(key: string, message: string): void {
+    if (!isReceiptStorageKey(key)) {
+      throw new InternalServerErrorException(message);
+    }
   }
 }

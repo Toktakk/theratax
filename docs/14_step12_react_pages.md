@@ -111,7 +111,7 @@ Check the Network tab while logging one row: there is one `POST /transactions`, 
 
 This is flow item 3. It stays on the feed row. Do not open a new page that takes several clicks, because this step has to be fast.
 
-A row whose `hasReceipt` is `false` has a file picker. When a file is chosen, `POST /transactions/:id/receipt` with the field `file` immediately. Then `GET /transactions/:id/receipt` and put `url` into the `src` of an `<img>`. Do not store the URL in `localStorage`, because it expires in 15 minutes. Opening the same row again asks for a new link.
+A row whose `hasReceipt` is `false` has a file picker. A phone may fill that file from the camera. When a file is chosen, `POST /transactions/:id/receipt` with the field `file` immediately. A payment slip uses this same field, not a second route. Then `GET /transactions/:id/receipt` and put `url` into the `src` of an `<img>`. Do not store the URL in `localStorage`, because it expires in 15 minutes. Opening the same row again asks for a new link.
 
 A file that is not an image shows the `400` message, and the row stays in the no-receipt state.
 

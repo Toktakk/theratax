@@ -1,25 +1,24 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { PublicUser } from '../auth/public-user.js';
-import { RECEIPT_FILE_MESSAGE } from './receipt-upload.filter.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import {
+  openReceipt,
+  ownedTransactionWhere,
+  receiptWrite,
+  removeReceipt,
+  storeReceipt,
+} from './store-receipt.js';
+import type {
+  OwnedTransaction,
+  Receipt,
+  ReceiptUploadDeps,
+  ReceiptUrl,
+  ReceiptWrite,
+} from './store-receipt.js';
 import { UploadService } from './upload.service.js';
 
-const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-export interface Receipt {
-  transactionId: number;
-  contentType: string;
-  byteSize: number;
-}
-
-export interface ReceiptUrl {
-  url: string;
-  expiresAt: string;
-}
+export type { Receipt, ReceiptUrl } from './store-receipt.js';
 
 @Injectable()
 export class ReceiptsService {
@@ -28,35 +27,55 @@ export class ReceiptsService {
     private readonly uploadService: UploadService,
   ) {}
 
-  async upload(
+  upload(
     user: PublicUser,
     id: number,
     file: Express.Multer.File | undefined,
   ): Promise<Receipt> {
-    await this.findTransaction(user.id, id);
-    if (
-      file === undefined ||
-      file.size < 1 ||
-      !ACCEPTED_TYPES.has(file.mimetype)
-    ) {
-      throw new BadRequestException(RECEIPT_FILE_MESSAGE);
-    }
-    const storageKey = `receipts/${user.id}/${id}`;
-    await this.uploadService.putObject(storageKey, file.buffer, file.mimetype);
-    const receipt = await this.prisma.receipt.upsert({
-      where: { transactionId: id },
-      create: {
-        transactionId: id,
-        contentType: file.mimetype,
-        byteSize: file.size,
-        storageKey,
-      },
-      update: {
-        contentType: file.mimetype,
-        byteSize: file.size,
-        storageKey,
-      },
+    return storeReceipt(this.deps(), user.id, id, file);
+  }
+
+  link(user: PublicUser, id: number): Promise<ReceiptUrl> {
+    return openReceipt(this.deps(), user.id, id);
+  }
+
+  remove(user: PublicUser, id: number): Promise<void> {
+    return removeReceipt(this.deps(), user.id, id);
+  }
+
+  private deps(): ReceiptUploadDeps {
+    return {
+      findTransaction: (userId, transactionId) =>
+        this.findOwned(userId, transactionId),
+      saveReceipt: (input) => this.saveReceipt(input),
+      deleteReceipt: (transactionId) => this.deleteReceiptRow(transactionId),
+      putObject: (key, body, contentType) =>
+        this.uploadService.putObject(key, body, contentType),
+      deleteObject: (key) => this.uploadService.deleteObject(key),
+      signedReadUrl: (key) => this.uploadService.signedReadUrl(key),
+      newObjectId: randomUUID,
+    };
+  }
+
+  private async findOwned(
+    userId: number,
+    id: number,
+  ): Promise<OwnedTransaction | null> {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: ownedTransactionWhere(userId, id),
+      include: { receipt: true },
     });
+    if (transaction === null) {
+      return null;
+    }
+    if (transaction.receipt === null) {
+      return { receipt: null };
+    }
+    return { receipt: { storageKey: transaction.receipt.storageKey } };
+  }
+
+  private async saveReceipt(input: ReceiptWrite): Promise<Receipt> {
+    const receipt = await this.prisma.receipt.upsert(receiptWrite(input));
     return {
       transactionId: receipt.transactionId,
       contentType: receipt.contentType,
@@ -64,31 +83,7 @@ export class ReceiptsService {
     };
   }
 
-  async link(user: PublicUser, id: number): Promise<ReceiptUrl> {
-    const transaction = await this.findTransaction(user.id, id);
-    if (transaction.receipt === null) {
-      throw new NotFoundException(`Receipt for transaction ${id} not found`);
-    }
-    return this.uploadService.signedReadUrl(transaction.receipt.storageKey);
-  }
-
-  async remove(user: PublicUser, id: number): Promise<void> {
-    const transaction = await this.findTransaction(user.id, id);
-    if (transaction.receipt === null) {
-      throw new NotFoundException(`Receipt for transaction ${id} not found`);
-    }
-    await this.uploadService.deleteObject(transaction.receipt.storageKey);
-    await this.prisma.receipt.delete({ where: { transactionId: id } });
-  }
-
-  private async findTransaction(userId: number, id: number) {
-    const transaction = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      include: { receipt: true },
-    });
-    if (transaction === null) {
-      throw new NotFoundException(`Transaction ${id} not found`);
-    }
-    return transaction;
+  private async deleteReceiptRow(transactionId: number): Promise<void> {
+    await this.prisma.receipt.delete({ where: { transactionId } });
   }
 }

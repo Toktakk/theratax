@@ -7,8 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { MulterError } from 'multer';
-
-export const RECEIPT_FILE_MESSAGE = 'Receipt must be an image up to 10 MiB';
+import { RECEIPT_FILE_MESSAGE } from './receipt-limits.js';
 
 @Catch(MulterError, PayloadTooLargeException)
 export class ReceiptUploadFilter implements ExceptionFilter {
