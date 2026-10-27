@@ -15,28 +15,20 @@ export class IncomeSummaryService {
     if (occurredOn === null) {
       throw new BadRequestException('Date is outside the 2026-27 tax year');
     }
-    const [incomes, bonuses] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where: { userId: user.id, type: 'income', occurredOn },
-        select: {
-          amountPence: true,
-          basePence: true,
-          additionalFeePence: true,
-          massageType: true,
-          customMassageType: true,
-          workplaceId: true,
-        },
-      }),
-      this.prisma.hourlyBonus.findMany({
-        where: { userId: user.id, occurredOn },
-        select: { totalPence: true, workplaceId: true },
-      }),
-    ]);
+    const incomes = await this.prisma.transaction.findMany({
+      where: { userId: user.id, type: 'income', occurredOn },
+      select: {
+        amountPence: true,
+        basePence: true,
+        additionalFeePence: true,
+        bonusPence: true,
+        massageType: true,
+        customMassageType: true,
+        workplaceId: true,
+      },
+    });
     const workplaceIds = [
-      ...new Set([
-        ...incomes.flatMap((income) => (income.workplaceId === null ? [] : [income.workplaceId])),
-        ...bonuses.map((bonus) => bonus.workplaceId),
-      ]),
+      ...new Set(incomes.flatMap((income) => (income.workplaceId === null ? [] : [income.workplaceId]))),
     ];
     const workplaces = await this.prisma.workplace.findMany({
       where: { userId: user.id, id: { in: workplaceIds } },
@@ -45,7 +37,6 @@ export class IncomeSummaryService {
     return summariseDay({
       date: dateText,
       incomes,
-      bonuses,
       workplaces,
     });
   }

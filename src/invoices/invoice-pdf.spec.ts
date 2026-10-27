@@ -58,7 +58,7 @@ describe('invoicePdfLines', () => {
 });
 
 describe('invoicePdfLines with stored lines', () => {
-  it('draws the recipient, each line, and the 1500 pence total', () => {
+  it('draws the recipient, each line, and the 6700 pence total', () => {
     expect(
       invoicePdfLines({
         therapistName: 'Ada Lovelace',
@@ -66,7 +66,7 @@ describe('invoicePdfLines with stored lines', () => {
         issuedOn: '02-05-2026',
         clientName: '',
         service: '',
-        amountPence: 1500,
+        amountPence: 6700,
         status: 'issued',
         recipientName: 'North Spa',
         periodStart: '01-05-2026',
@@ -76,22 +76,22 @@ describe('invoicePdfLines with stored lines', () => {
             description: 'Swedish',
             quantity: 1,
             quantityUnit: 'session',
-            ratePence: 1000,
-            amountPence: 1000,
+            ratePence: 6000,
+            amountPence: 6000,
           },
           {
-            description: 'Additional fee',
+            description: 'Additional Massage Fee',
             quantity: 1,
             quantityUnit: 'session',
             ratePence: 200,
             amountPence: 200,
           },
           {
-            description: 'Hourly bonus',
-            quantity: 90,
-            quantityUnit: 'minute',
-            ratePence: 200,
-            amountPence: 300,
+            description: 'Bonus',
+            quantity: 1,
+            quantityUnit: 'session',
+            ratePence: 500,
+            amountPence: 500,
           },
         ],
       }),
@@ -101,10 +101,10 @@ describe('invoicePdfLines with stored lines', () => {
       'Issued: 02-05-2026',
       'Recipient: North Spa',
       'Period: 01-05-2026 to 01-05-2026',
-      'Swedish, 1 session, £10.00, £10.00',
-      'Additional fee, 1 session, £2.00, £2.00',
-      'Hourly bonus, 90 minute, £2.00, £3.00',
-      'Amount: £15.00',
+      'Swedish, 1 session, £60.00, £60.00',
+      'Additional Massage Fee, 1 session, £2.00, £2.00',
+      'Bonus, 1 session, £5.00, £5.00',
+      'Amount: £67.00',
       'Status: issued',
     ]);
   });

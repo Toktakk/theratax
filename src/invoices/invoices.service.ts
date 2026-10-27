@@ -26,7 +26,7 @@ const PERIOD_START = Date.UTC(2026, 3, 6);
 const PERIOD_END = Date.UTC(2027, 3, 5);
 
 export interface InvoiceLineResponse {
-  kind: 'service' | 'additional_fee' | 'hourly_bonus';
+  kind: 'service' | 'additional_fee' | 'bonus' | 'hourly_bonus';
   description: string;
   quantity: number;
   quantityUnit: 'session' | 'minute';
@@ -133,6 +133,17 @@ function isUniqueConstraintViolation(error: unknown): boolean {
   );
 }
 
+function isSourceLineCollision(error: unknown): boolean {
+  if (!isUniqueConstraintViolation(error) || !(error instanceof Prisma.PrismaClientKnownRequestError)) {
+    return false;
+  }
+  const target = error.meta?.target;
+  if (typeof target === 'string') {
+    return target.includes('sourceTransactionId');
+  }
+  return Array.isArray(target) && target.includes('sourceTransactionId');
+}
+
 function monthBounds(month: number, year: number): { start: Date; end: Date } | null {
   const startTime = Date.UTC(year, month - 1, 1);
   const endTime = Date.UTC(year, month, 0);
@@ -165,12 +176,7 @@ function toLineResponse(line: BuiltInvoiceLine): InvoiceLineResponse {
     amountPence: line.amountPence,
     occurredOn: line.occurredOn,
   };
-  if (line.sourceTransactionId !== undefined) {
-    response.sourceTransactionId = line.sourceTransactionId;
-  }
-  if (line.sourceBonusId !== undefined) {
-    response.sourceBonusId = line.sourceBonusId;
-  }
+  response.sourceTransactionId = line.sourceTransactionId;
   return response;
 }
 
@@ -320,6 +326,9 @@ export class InvoicesService {
     try {
       return toResponse(await this.insertInvoice(user.id, input, issuedOn));
     } catch (error) {
+      if (isSourceLineCollision(error)) {
+        throw new BadRequestException('No records to invoice for this recipient and period');
+      }
       if (isUniqueConstraintViolation(error)) {
         throw new ConflictException('Invoice number collided, retry');
       }
@@ -402,18 +411,6 @@ export class InvoicesService {
       },
       orderBy: [{ occurredOn: 'asc' }, { id: 'asc' }],
     });
-    const bonuses =
-      recipient.workplaceId === undefined
-        ? []
-        : await db.hourlyBonus.findMany({
-            where: {
-              userId,
-              workplaceId: recipient.workplaceId,
-              occurredOn: { gte: periodBounds.periodStart, lte: periodBounds.periodEnd },
-              invoiceLines: { none: {} },
-            },
-            orderBy: [{ occurredOn: 'asc' }, { id: 'asc' }],
-          });
     const lines = buildInvoiceLines({
       incomes: incomes.map((income) => ({
         id: income.id,
@@ -421,15 +418,9 @@ export class InvoicesService {
         amountPence: income.amountPence,
         basePence: income.basePence,
         additionalFeePence: income.additionalFeePence,
+        bonusPence: income.bonusPence,
         massageType: income.massageType,
         customMassageType: income.customMassageType,
-      })),
-      bonuses: bonuses.map((bonus) => ({
-        id: bonus.id,
-        occurredOn: formatCivilDate(bonus.occurredOn),
-        eligibleMinutes: bonus.eligibleMinutes,
-        ratePencePerHour: bonus.ratePencePerHour,
-        totalPence: bonus.totalPence,
       })),
     });
     return {
@@ -511,8 +502,7 @@ export class InvoicesService {
               ratePence: line.ratePence,
               amountPence: line.amountPence,
               occurredOn: this.readDate(line.occurredOn),
-              sourceTransactionId: line.sourceTransactionId ?? null,
-              sourceBonusId: line.sourceBonusId ?? null,
+              sourceTransactionId: line.sourceTransactionId,
             })),
           },
         },

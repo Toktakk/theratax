@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
 import type { HourExtraResponse, StoredHourExtra } from '../hour-extras/hour-extra.js';
@@ -42,6 +43,12 @@ interface WorkplaceRow {
 
 const includeExtras = { hourExtras: true } as const;
 
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+  );
+}
+
 function toResponse(row: WorkplaceRow): WorkplaceResponse {
   return {
     id: row.id,
@@ -73,17 +80,24 @@ export class WorkplacesService {
     await this.requireUniqueName(user.id, input.kind, name);
     const rows = readHourExtras(input.hourExtras ?? []);
     const extras = extraCreate(rows);
-    const created = await this.prisma.workplace.create({
-      data: {
-        userId: user.id,
-        name,
-        kind: input.kind,
-        hourRatePence: input.hourRatePence,
-        ...(extras !== undefined ? { hourExtras: extras } : {}),
-      },
-      include: includeExtras,
-    });
-    return toResponse(created);
+    try {
+      const created = await this.prisma.workplace.create({
+        data: {
+          userId: user.id,
+          name,
+          kind: input.kind,
+          hourRatePence: input.hourRatePence,
+          ...(extras !== undefined ? { hourExtras: extras } : {}),
+        },
+        include: includeExtras,
+      });
+      return toResponse(created);
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new ConflictException('Workplace already saved');
+      }
+      throw error;
+    }
   }
 
   async list(user: PublicUser, query: ListWorkplacesQueryDto): Promise<WorkplaceListResponse> {
@@ -116,19 +130,26 @@ export class WorkplacesService {
     }
     await this.requireUniqueName(user.id, current.kind, name, id);
     const rows = readHourExtras(input.hourExtras);
-    const updated = await this.prisma.workplace.update({
-      where: { id },
-      data: {
-        name,
-        hourRatePence: input.hourRatePence,
-        hourExtras: {
-          deleteMany: {},
-          create: rows,
+    try {
+      const updated = await this.prisma.workplace.update({
+        where: { id },
+        data: {
+          name,
+          hourRatePence: input.hourRatePence,
+          hourExtras: {
+            deleteMany: {},
+            create: rows,
+          },
         },
-      },
-      include: includeExtras,
-    });
-    return toResponse(updated);
+        include: includeExtras,
+      });
+      return toResponse(updated);
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new ConflictException('Workplace already saved');
+      }
+      throw error;
+    }
   }
 
   private async requireUniqueName(

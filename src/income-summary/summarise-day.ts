@@ -2,14 +2,10 @@ export interface SummaryIncome {
   amountPence: number;
   basePence: number | null;
   additionalFeePence: number | null;
+  bonusPence: number | null;
   massageType: string | null;
   customMassageType: string | null;
   workplaceId: number | null;
-}
-
-export interface SummaryBonus {
-  totalPence: number;
-  workplaceId: number;
 }
 
 export interface SummaryWorkplace {
@@ -24,7 +20,7 @@ export interface WorkplaceDay {
   kind: 'spa' | 'clinic';
   basePence: number;
   additionalFeePence: number;
-  hourlyBonusPence: number;
+  bonusPence: number;
   totalPence: number;
 }
 
@@ -33,6 +29,7 @@ export interface MassageTypeDay {
   customMassageType?: string;
   basePence: number;
   additionalFeePence: number;
+  bonusPence: number;
   totalPence: number;
 }
 
@@ -40,7 +37,7 @@ export interface DailyIncomeSummary {
   date: string;
   basePence: number;
   additionalFeePence: number;
-  hourlyBonusPence: number;
+  bonusPence: number;
   totalPence: number;
   byWorkplace: WorkplaceDay[];
   byMassageType: MassageTypeDay[];
@@ -49,6 +46,7 @@ export interface DailyIncomeSummary {
 interface PenceParts {
   basePence: number;
   additionalFeePence: number;
+  bonusPence: number;
 }
 
 function incomeParts(income: SummaryIncome): PenceParts {
@@ -56,71 +54,58 @@ function incomeParts(income: SummaryIncome): PenceParts {
     return {
       basePence: income.basePence,
       additionalFeePence: income.additionalFeePence ?? 0,
+      bonusPence: income.bonusPence ?? 0,
     };
   }
-  return { basePence: income.amountPence, additionalFeePence: 0 };
+  return { basePence: income.amountPence, additionalFeePence: 0, bonusPence: 0 };
+}
+
+function emptyParts(): PenceParts {
+  return { basePence: 0, additionalFeePence: 0, bonusPence: 0 };
+}
+
+function addParts(current: PenceParts, parts: PenceParts): void {
+  current.basePence += parts.basePence;
+  current.additionalFeePence += parts.additionalFeePence;
+  current.bonusPence += parts.bonusPence;
 }
 
 export function summariseDay(input: {
   date: string;
   incomes: SummaryIncome[];
-  bonuses: SummaryBonus[];
   workplaces: SummaryWorkplace[];
 }): DailyIncomeSummary {
   const workplacesById = new Map(input.workplaces.map((workplace) => [workplace.id, workplace]));
-  const workplaceTotals = new Map<
-    number,
-    PenceParts & { hourlyBonusPence: number }
+  const workplaceTotals = new Map<number, PenceParts>();
+  const massageTotals = new Map<
+    string,
+    PenceParts & { massageType: string; customMassageType: string | null }
   >();
-  const massageTotals = new Map<string, PenceParts & { massageType: string; customMassageType: string | null }>();
-  let basePence = 0;
-  let additionalFeePence = 0;
-  let hourlyBonusPence = 0;
+  const totals = emptyParts();
 
   for (const income of input.incomes) {
     const parts = incomeParts(income);
-    basePence += parts.basePence;
-    additionalFeePence += parts.additionalFeePence;
+    addParts(totals, parts);
     if (income.workplaceId !== null && workplacesById.has(income.workplaceId)) {
-      const current = workplaceTotals.get(income.workplaceId) ?? {
-        basePence: 0,
-        additionalFeePence: 0,
-        hourlyBonusPence: 0,
-      };
-      current.basePence += parts.basePence;
-      current.additionalFeePence += parts.additionalFeePence;
+      const current = workplaceTotals.get(income.workplaceId) ?? emptyParts();
+      addParts(current, parts);
       workplaceTotals.set(income.workplaceId, current);
     }
     if (income.massageType !== null) {
       const custom = income.customMassageType;
       const key = `${income.massageType}\u0000${custom ?? ''}`;
       const current = massageTotals.get(key) ?? {
+        ...emptyParts(),
         massageType: income.massageType,
         customMassageType: custom,
-        basePence: 0,
-        additionalFeePence: 0,
       };
-      current.basePence += parts.basePence;
-      current.additionalFeePence += parts.additionalFeePence;
+      addParts(current, parts);
       massageTotals.set(key, current);
     }
   }
 
-  for (const bonus of input.bonuses) {
-    hourlyBonusPence += bonus.totalPence;
-    if (workplacesById.has(bonus.workplaceId)) {
-      const current = workplaceTotals.get(bonus.workplaceId) ?? {
-        basePence: 0,
-        additionalFeePence: 0,
-        hourlyBonusPence: 0,
-      };
-      current.hourlyBonusPence += bonus.totalPence;
-      workplaceTotals.set(bonus.workplaceId, current);
-    }
-  }
-
   const byWorkplace = [...workplaceTotals.entries()]
-    .map(([workplaceId, totals]) => {
+    .map(([workplaceId, parts]) => {
       const workplace = workplacesById.get(workplaceId);
       if (workplace === undefined) {
         return null;
@@ -129,25 +114,26 @@ export function summariseDay(input: {
         workplaceId,
         name: workplace.name,
         kind: workplace.kind,
-        basePence: totals.basePence,
-        additionalFeePence: totals.additionalFeePence,
-        hourlyBonusPence: totals.hourlyBonusPence,
-        totalPence: totals.basePence + totals.additionalFeePence + totals.hourlyBonusPence,
+        basePence: parts.basePence,
+        additionalFeePence: parts.additionalFeePence,
+        bonusPence: parts.bonusPence,
+        totalPence: parts.basePence + parts.additionalFeePence + parts.bonusPence,
       };
     })
     .filter((row): row is WorkplaceDay => row !== null)
     .sort((left, right) => left.name.localeCompare(right.name) || left.workplaceId - right.workplaceId);
 
   const byMassageType = [...massageTotals.values()]
-    .map((totals) => {
+    .map((parts) => {
       const row: MassageTypeDay = {
-        massageType: totals.massageType,
-        basePence: totals.basePence,
-        additionalFeePence: totals.additionalFeePence,
-        totalPence: totals.basePence + totals.additionalFeePence,
+        massageType: parts.massageType,
+        basePence: parts.basePence,
+        additionalFeePence: parts.additionalFeePence,
+        bonusPence: parts.bonusPence,
+        totalPence: parts.basePence + parts.additionalFeePence + parts.bonusPence,
       };
-      if (totals.customMassageType !== null && totals.customMassageType.length > 0) {
-        row.customMassageType = totals.customMassageType;
+      if (parts.customMassageType !== null && parts.customMassageType.length > 0) {
+        row.customMassageType = parts.customMassageType;
       }
       return row;
     })
@@ -159,10 +145,10 @@ export function summariseDay(input: {
 
   return {
     date: input.date,
-    basePence,
-    additionalFeePence,
-    hourlyBonusPence,
-    totalPence: basePence + additionalFeePence + hourlyBonusPence,
+    basePence: totals.basePence,
+    additionalFeePence: totals.additionalFeePence,
+    bonusPence: totals.bonusPence,
+    totalPence: totals.basePence + totals.additionalFeePence + totals.bonusPence,
     byWorkplace,
     byMassageType,
   };

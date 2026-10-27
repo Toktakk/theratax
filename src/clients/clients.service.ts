@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
 import type { HourExtraResponse, StoredHourExtra } from '../hour-extras/hour-extra.js';
@@ -45,6 +46,12 @@ interface ClientRow {
 
 const includeExtras = { hourExtras: true } as const;
 
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+  );
+}
+
 function toResponse(row: ClientRow): ClientResponse {
   return {
     id: row.id,
@@ -72,16 +79,23 @@ export class ClientsService {
     await this.requireUniqueName(user.id, name);
     const rows = readHourExtras(input.hourExtras ?? []);
     const extras = extraCreate(rows);
-    const created = await this.prisma.client.create({
-      data: {
-        userId: user.id,
-        name,
-        hourRatePence: input.hourRatePence,
-        ...(extras !== undefined ? { hourExtras: extras } : {}),
-      },
-      include: includeExtras,
-    });
-    return toResponse(created);
+    try {
+      const created = await this.prisma.client.create({
+        data: {
+          userId: user.id,
+          name,
+          hourRatePence: input.hourRatePence,
+          ...(extras !== undefined ? { hourExtras: extras } : {}),
+        },
+        include: includeExtras,
+      });
+      return toResponse(created);
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new ConflictException('Client already saved');
+      }
+      throw error;
+    }
   }
 
   async list(user: PublicUser, query: ListClientsQueryDto): Promise<ClientListResponse> {
@@ -115,23 +129,30 @@ export class ClientsService {
     const name = this.readName(input.name);
     await this.requireUniqueName(user.id, name, id);
     const rows = input.hourExtras === undefined ? undefined : readHourExtras(input.hourExtras);
-    const updated = await this.prisma.client.update({
-      where: { id },
-      data: {
-        name,
-        ...(input.hourRatePence !== undefined ? { hourRatePence: input.hourRatePence } : {}),
-        ...(rows !== undefined
-          ? {
-              hourExtras: {
-                deleteMany: {},
-                create: rows,
-              },
-            }
-          : {}),
-      },
-      include: includeExtras,
-    });
-    return toResponse(updated);
+    try {
+      const updated = await this.prisma.client.update({
+        where: { id },
+        data: {
+          name,
+          ...(input.hourRatePence !== undefined ? { hourRatePence: input.hourRatePence } : {}),
+          ...(rows !== undefined
+            ? {
+                hourExtras: {
+                  deleteMany: {},
+                  create: rows,
+                },
+              }
+            : {}),
+        },
+        include: includeExtras,
+      });
+      return toResponse(updated);
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new ConflictException('Client already saved');
+      }
+      throw error;
+    }
   }
 
   async remove(user: PublicUser, id: number): Promise<void> {

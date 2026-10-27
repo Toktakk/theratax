@@ -6,25 +6,57 @@ describe('summariseDay', () => {
       date: '01-05-2026',
       incomes: [
         {
-          amountPence: 1200,
-          basePence: 1000,
+          amountPence: 6700,
+          basePence: 6000,
           additionalFeePence: 200,
+          bonusPence: 500,
           massageType: 'swedish',
           customMassageType: null,
           workplaceId: 1,
         },
       ],
-      bonuses: [{ totalPence: 300, workplaceId: 1 }],
       workplaces: [{ id: 1, name: 'North Spa', kind: 'spa' }],
     });
 
-    expect(summary.totalPence).toBe(1500);
-    expect(summary.basePence).toBe(1000);
+    expect(summary.totalPence).toBe(6700);
+    expect(summary.basePence).toBe(6000);
     expect(summary.additionalFeePence).toBe(200);
-    expect(summary.hourlyBonusPence).toBe(300);
+    expect(summary.bonusPence).toBe(500);
     expect(summary.byMassageType).toEqual([
-      { massageType: 'swedish', basePence: 1000, additionalFeePence: 200, totalPence: 1200 },
+      {
+        massageType: 'swedish',
+        basePence: 6000,
+        additionalFeePence: 200,
+        bonusPence: 500,
+        totalPence: 6700,
+      },
     ]);
-    expect(summary.byWorkplace[0]?.totalPence).toBe(1500);
+    expect(summary.byWorkplace[0]?.bonusPence).toBe(500);
+    expect(summary.byWorkplace[0]?.totalPence).toBe(6700);
+  });
+
+  it('counts cash income as base and leaves both breakdowns empty', () => {
+    const summary = summariseDay({
+      date: '02-05-2026',
+      incomes: [
+        {
+          amountPence: 4000,
+          basePence: null,
+          additionalFeePence: null,
+          bonusPence: 500,
+          massageType: null,
+          customMassageType: null,
+          workplaceId: null,
+        },
+      ],
+      workplaces: [],
+    });
+
+    expect(summary.basePence).toBe(4000);
+    expect(summary.additionalFeePence).toBe(0);
+    expect(summary.bonusPence).toBe(0);
+    expect(summary.totalPence).toBe(4000);
+    expect(summary.byWorkplace).toEqual([]);
+    expect(summary.byMassageType).toEqual([]);
   });
 });

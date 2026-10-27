@@ -6,34 +6,26 @@ export interface InvoiceSourceIncome {
   amountPence: number;
   basePence: number | null;
   additionalFeePence: number | null;
+  bonusPence: number | null;
   massageType: string | null;
   customMassageType: string | null;
 }
 
-export interface InvoiceSourceBonus {
-  id: number;
-  occurredOn: string;
-  eligibleMinutes: number;
-  ratePencePerHour: number;
-  totalPence: number;
-}
-
 export interface BuiltInvoiceLine {
-  kind: 'service' | 'additional_fee' | 'hourly_bonus';
+  kind: 'service' | 'additional_fee' | 'bonus';
   description: string;
   quantity: number;
-  quantityUnit: 'session' | 'minute';
+  quantityUnit: 'session';
   ratePence: number;
   amountPence: number;
   occurredOn: string;
-  sourceTransactionId?: number;
-  sourceBonusId?: number;
+  sourceTransactionId: number;
 }
 
 const KIND_ORDER: Record<BuiltInvoiceLine['kind'], number> = {
   service: 0,
   additional_fee: 1,
-  hourly_bonus: 2,
+  bonus: 2,
 };
 
 function serviceDescription(income: InvoiceSourceIncome): string {
@@ -61,7 +53,6 @@ function civilTime(value: string): number {
 
 export function buildInvoiceLines(input: {
   incomes: InvoiceSourceIncome[];
-  bonuses: InvoiceSourceBonus[];
 }): BuiltInvoiceLine[] {
   const lines: BuiltInvoiceLine[] = [];
   for (const income of input.incomes) {
@@ -80,7 +71,7 @@ export function buildInvoiceLines(input: {
     if (fee > 0) {
       lines.push({
         kind: 'additional_fee',
-        description: 'Additional fee',
+        description: 'Additional Massage Fee',
         quantity: 1,
         quantityUnit: 'session',
         ratePence: fee,
@@ -89,18 +80,19 @@ export function buildInvoiceLines(input: {
         sourceTransactionId: income.id,
       });
     }
-  }
-  for (const bonus of input.bonuses) {
-    lines.push({
-      kind: 'hourly_bonus',
-      description: 'Hourly bonus',
-      quantity: bonus.eligibleMinutes,
-      quantityUnit: 'minute',
-      ratePence: bonus.ratePencePerHour,
-      amountPence: bonus.totalPence,
-      occurredOn: bonus.occurredOn,
-      sourceBonusId: bonus.id,
-    });
+    const bonus = income.bonusPence ?? 0;
+    if (bonus > 0) {
+      lines.push({
+        kind: 'bonus',
+        description: 'Bonus',
+        quantity: 1,
+        quantityUnit: 'session',
+        ratePence: bonus,
+        amountPence: bonus,
+        occurredOn: income.occurredOn,
+        sourceTransactionId: income.id,
+      });
+    }
   }
   lines.sort((left, right) => {
     const byDate = civilTime(left.occurredOn) - civilTime(right.occurredOn);
@@ -111,9 +103,7 @@ export function buildInvoiceLines(input: {
     if (byKind !== 0) {
       return byKind;
     }
-    const leftId = left.sourceTransactionId ?? left.sourceBonusId ?? 0;
-    const rightId = right.sourceTransactionId ?? right.sourceBonusId ?? 0;
-    return leftId - rightId;
+    return left.sourceTransactionId - right.sourceTransactionId;
   });
   return lines;
 }

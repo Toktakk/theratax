@@ -221,7 +221,7 @@ export function FeedPage({ user }: FeedPageProps) {
     request<DailyIncomeSummary>(path)
       .then((body) => {
         if (!cancelled) {
-          setSummary(withBonus(body));
+          setSummary(body);
         }
       })
       .catch((error: unknown) => {
@@ -675,7 +675,7 @@ export function FeedPage({ user }: FeedPageProps) {
         {summaryLoading ? <p className="muted">Loading summary…</p> : null}
         {summaryError !== '' ? <FormError message={summaryError} /> : null}
         {summary !== null && summaryError === '' ? (
-          <SummaryFigures summary={shownSummary(summary, items, draft)} />
+          <SummaryFigures summary={shownSummary(summary, draft)} />
         ) : null}
       </section>
       <FormError message={listError} />
@@ -1310,22 +1310,10 @@ function massageDraft(
   };
 }
 
-function bonusOnDate(items: readonly Transaction[], date: string): number {
-  let total = 0;
-  for (const item of items) {
-    if (item.type === 'income' && item.occurredOn === date) {
-      total += item.bonusPence ?? 0;
-    }
-  }
-  return total;
-}
-
 function shownSummary(
   summary: DailyIncomeSummary,
-  items: readonly Transaction[],
   draft: { basePence: number; additionalFeePence: number; bonusPence: number } | null,
 ): DailyIncomeSummary {
-  const savedBonus = bonusOnDate(items, summary.date);
   const draftBase = draft === null ? 0 : draft.basePence;
   const draftFee = draft === null ? 0 : draft.additionalFeePence;
   const draftBonus = draft === null ? 0 : draft.bonusPence;
@@ -1333,8 +1321,8 @@ function shownSummary(
     ...summary,
     basePence: summary.basePence + draftBase,
     additionalFeePence: summary.additionalFeePence + draftFee,
-    bonusPence: summary.bonusPence + savedBonus + draftBonus,
-    totalPence: summary.totalPence + savedBonus + draftBase + draftFee + draftBonus,
+    bonusPence: summary.bonusPence + draftBonus,
+    totalPence: summary.totalPence + draftBase + draftFee + draftBonus,
   };
 }
 
@@ -1348,21 +1336,6 @@ function chosenParty(value: string): { workplaceId?: number; clientId?: number }
     return { clientId: Number(client[1]) };
   }
   return {};
-}
-
-function withBonus(summary: DailyIncomeSummary): DailyIncomeSummary {
-  return {
-    ...summary,
-    bonusPence: summary.bonusPence ?? 0,
-    byWorkplace: summary.byWorkplace.map((row) => ({
-      ...row,
-      bonusPence: row.bonusPence ?? 0,
-    })),
-    byMassageType: summary.byMassageType.map((row) => ({
-      ...row,
-      bonusPence: row.bonusPence ?? 0,
-    })),
-  };
 }
 
 function storedValue(record: Record<number, string>, id: number): string | undefined {

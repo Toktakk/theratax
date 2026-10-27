@@ -31,7 +31,7 @@ export class TaxEngineService {
     if (taxYear !== SUPPORTED_TAX_YEAR) {
       throw new BadRequestException('Only the 2026-27 tax year is supported');
     }
-    const [income, expenses, bonuses] = await Promise.all([
+    const [income, expenses] = await Promise.all([
       this.prisma.transaction.aggregate({
         where: {
           userId: user.id,
@@ -48,16 +48,9 @@ export class TaxEngineService {
         },
         _sum: { amountPence: true },
       }),
-      this.prisma.hourlyBonus.aggregate({
-        where: {
-          userId: user.id,
-          occurredOn: { gte: PERIOD_START, lte: PERIOD_END },
-        },
-        _sum: { totalPence: true },
-      }),
     ]);
     return calculateTaxSummary({
-      incomePence: (income._sum.amountPence ?? 0) + (bonuses._sum.totalPence ?? 0),
+      incomePence: income._sum.amountPence ?? 0,
       allowableExpensesPence: expenses._sum.amountPence ?? 0,
       expenseMethod: user.expenseMethod,
     });

@@ -160,7 +160,7 @@ model Invoice {
 
 model Workplace {
   id            Int           @id @default(autoincrement())
-  name          String
+  name          String        @db.Citext
   kind          WorkplaceKind
   hourRatePence Int           @default(0)
   createdAt     DateTime      @default(now())
@@ -172,6 +172,7 @@ model Workplace {
   invoices      Invoice[]
   hourExtras    HourExtra[]
 
+  @@unique([userId, kind, name])
   @@index([userId])
 }
 
@@ -223,6 +224,7 @@ enum InvoiceLineKind {
   service
   additional_fee
   hourly_bonus
+  bonus
 }
 
 enum QuantityUnit {
@@ -232,7 +234,7 @@ enum QuantityUnit {
 
 model Client {
   id            Int           @id @default(autoincrement())
-  name          String
+  name          String        @db.Citext
   hourRatePence Int           @default(0)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -242,6 +244,7 @@ model Client {
   invoices      Invoice[]
   hourExtras    HourExtra[]
 
+  @@unique([userId, name])
   @@index([userId])
 }
 
@@ -260,4 +263,6 @@ model InvoiceLine {
   invoice             Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   sourceTransaction   Transaction?    @relation(fields: [sourceTransactionId], references: [id], onDelete: SetNull)
   sourceBonus         HourlyBonus?    @relation(fields: [sourceBonusId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceTransactionId, kind])
 }
