@@ -16,7 +16,7 @@ Saving a transaction does not require a photograph. `POST /transactions` has no 
 
 One transaction can have one image. That image is a receipt or a payment slip, not both. `POST /transactions/:id/receipt` is `multipart/form-data`. The field name is `file`. The bytes may come from a camera capture or from a file picker. The server does not take a filesystem path.
 
-- Accepted types: `image/jpeg`, `image/png`, `image/webp`. HEIC is rejected, so a camera sends one of these three.
+- Accepted types: `image/jpeg`, `image/png`, `image/webp`, and `application/pdf`. HEIC is rejected. A camera capture has to be one of the three images. A PDF is accepted when the bytes start with `%PDF-` and contain `%%EOF`.
 - Size: 1 byte up to 10 MiB, which is `10 * 1024 * 1024`
 
 Success is `201` with no URL.
@@ -37,6 +37,7 @@ The object is private, so the `POST` response has no URL. `GET /transactions/:id
 interface ReceiptUrl {
   url: string;
   expiresAt: string;
+  contentType: string;
 }
 ```
 
@@ -94,9 +95,9 @@ S3_BUCKET=receipts
 
 When the module starts, create the bucket if it does not exist. If the error says it already exists, continue. Do not set a policy that makes the bucket public.
 
-`FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } })` stops a large file before the handler. `MAX_RECEIPT_BYTES` is `10 * 1024 * 1024`, in one place, and the service uses that same constant. If multer throws `MulterError`, in particular the code `LIMIT_FILE_SIZE`, the filter responds `400` with the message `Receipt must be an image up to 10 MiB`. The shape is a string in `message`, from an exception you threw on purpose, not an array from the pipe. The contract locks the status for a wrong type, a malformed image, or an oversized file at 400, and this lesson uses this sentence. The interceptor keeps the file in memory so the bytes can be checked. Do not switch it to disk storage.
+`FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } })` stops a large file before the handler. `MAX_RECEIPT_BYTES` is `10 * 1024 * 1024`, in one place, and the service uses that same constant. If multer throws `MulterError`, in particular the code `LIMIT_FILE_SIZE`, the filter responds `400` with the message `Receipt must be an image or PDF up to 10 MiB`. The shape is a string in `message`, from an exception you threw on purpose, not an array from the pipe. The contract locks the status for a wrong type, a malformed image, or an oversized file at 400, and this lesson uses this sentence. The interceptor keeps the file in memory so the bytes can be checked. Do not switch it to disk storage.
 
-Find this user's transaction first. A missing row is the transaction message, including when the file would also be rejected. Then reject a missing file, a size below 1 byte, a size above `MAX_RECEIPT_BYTES`, or bytes that are not a complete JPEG, PNG, or WebP, with the same `400` sentence. Read the type from the bytes. A camera blob may send `application/octet-stream` or an empty type. Those are accepted when the bytes are one of the three images. `ContentType` on `PutObject`, and `contentType` on the row, are the detected type. Ignore the filename.
+Find this user's transaction first. A missing row is the transaction message, including when the file would also be rejected. Then reject a missing file, a size below 1 byte, a size above `MAX_RECEIPT_BYTES`, or bytes that are not a complete JPEG, PNG, WebP, or PDF, with the same `400` sentence. Read the type from the bytes. A camera blob may send `application/octet-stream` or an empty type. Those are accepted when the bytes are one of the three images. A PDF is accepted from its header and `%%EOF`. `ContentType` on `PutObject`, and `contentType` on the row, are the detected type. Ignore the filename.
 
 `PutObject` the new key first. If that write fails, respond `500` with `Receipt could not be stored` and do not write a row. Then `upsert` on `transactionId`. If the upsert fails, `DeleteObject` the new key, leave the previous object in place, and respond `500` with the same sentence. A retry writes a new object id and upserts the same row. After the upsert succeeds, delete the previous object when its key differs. A link is signed only for a key shaped like the two forms above. Delete calls `DeleteObject`, then deletes the row. If there is no receipt, that is the receipt message.
 
@@ -114,7 +115,7 @@ This domain's folder is `src/upload/`, following the project layout, even though
 - `src/upload/receipt-upload.filter.ts`
 - `src/upload/upload.module.ts`
 - `src/upload/receipt-limits.ts` holds the size and the client messages
-- `src/upload/image-type.ts` reads JPEG, PNG, and WebP bytes
+- `src/upload/image-type.ts` reads JPEG, PNG, WebP, and PDF bytes
 - `src/upload/receipt-storage-key.ts` builds and checks storage keys
 - `src/upload/receipt-link.ts` sets the 15-minute expiry
 - `src/upload/store-receipt.ts` uploads, opens, and removes one photo
@@ -166,13 +167,13 @@ GET {{baseUrl}}/transactions?limit=20
 
 The first upload gets `201`. It has `transactionId`, `contentType` of `image/jpeg`, `byteSize` greater than 0, and no `url` key.
 
-Asking for the link gets `200`. It has a `url` that starts with the MinIO endpoint, and `expiresAt` about 15 minutes from the time you asked. A drift of up to one minute is acceptable.
+Asking for the link gets `200`. It has a `url` that starts with the MinIO endpoint, `expiresAt` about 15 minutes from the time you asked, and `contentType` of the stored file. A drift of up to one minute is acceptable. An image opens as a picture. A PDF opens as a PDF.
 
 Postman can open that link and get the image bytes, status `200`. Opening the link in a browser shows the picture.
 
 Uploading again gets `201`, and the new link still opens the picture.
 
-`notes.txt` gets `400` and the message `Receipt must be an image up to 10 MiB`.
+`notes.txt` gets `400` and the message `Receipt must be an image or PDF up to 10 MiB`.
 
 A transaction that still has no image gets `404` and the message `Receipt for transaction <id> not found`.
 
@@ -180,7 +181,7 @@ In the transaction list, the uploaded row has `hasReceipt: true`.
 
 `POST /transactions` with `{"type":"income","amountPence":100}` and no file gets `201`, `hasReceipt` of `false`, and no receipt row for that id. `GET /transactions/{{thatId}}/receipt` gets `404`. An expense with no file does the same.
 
-A JPEG whose multipart type is `application/octet-stream` gets `201` and `contentType` `image/jpeg`. A file that only starts with JPEG bytes, and a PNG whose bytes were altered, get `400` and `Receipt must be an image up to 10 MiB`. Another user's transaction id gets `404` and `Transaction <id> not found`.
+A JPEG whose multipart type is `application/octet-stream` gets `201` and `contentType` `image/jpeg`. A file that only starts with JPEG bytes, and a PNG whose bytes were altered, get `400` and `Receipt must be an image or PDF up to 10 MiB`. Another user's transaction id gets `404` and `Transaction <id> not found`.
 
 No Bearer gets `401`. If you are not onboarded, you get `403`.
 

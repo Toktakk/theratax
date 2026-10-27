@@ -117,7 +117,7 @@ A fee or a bonus without a massage type is `400` with the fee or bonus message a
 
 `type` is not accepted on `PATCH`. Sending it is `400` from the pipe.
 
-A photo whose bytes are not a complete JPEG, PNG, or WebP is `400`. The row stays without a receipt. Saving the income row itself still succeeded. A camera blob is still the multipart field `file`.
+A file whose bytes are not a complete JPEG, PNG, WebP, or PDF is `400` with `Receipt must be an image or PDF up to 10 MiB`. The row stays without a receipt. Saving the income row itself still succeeded. A camera blob is still the multipart field `file`. The feed shows the link as an image when `contentType` is an image, and opens that same link when `contentType` is `application/pdf`.
 
 ## Business logic and calculations
 
@@ -193,7 +193,7 @@ Lists and creates are limited to the token user. Another user's workplace, clien
 - The summary for that date shows base `5000`, additional fee `200`, bonus `500`, and total `5700`. The workplace breakdown and the Swedish breakdown each include the bonus once. The top-level total is not `11400` and not `5200`.
 - An issued invoice does not change the summary. The summary tells the user these amounts stay out of the tax summary until the invoice is paid.
 - Deleting the massage row drops the base, the fee, and the bonus together.
-- Save succeeds with no file chosen. A JPEG then appears on the row. A camera photo uses that same upload. A `.txt` file is rejected and the row stays saved.
+- Save succeeds with no file chosen. A JPEG then appears on the row. A PDF opens from the same link. A camera photo uses that same upload. A `.txt` file is rejected and the row stays saved.
 - `oils` suggests Oils and consumables before save. Mileage still sends miles and not `amountPence`.
 
 ## Dependencies on other pages or shared components
