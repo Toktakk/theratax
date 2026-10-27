@@ -1,6 +1,6 @@
 import type { AuthResponse, User } from './types.ts';
 
-const API_ORIGIN = 'http://localhost:3000';
+const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? 'http://localhost:3000';
 const TOKEN_KEY = 'accessToken';
 const SIGNED_OUT_EVENT = 'theratax-signed-out';
 

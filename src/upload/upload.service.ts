@@ -54,7 +54,7 @@ export class UploadService implements OnModuleInit {
   constructor() {
     this.bucket = requiredEnv('S3_BUCKET');
     this.client = new S3Client({
-      region: 'us-east-1',
+      region: process.env.S3_REGION ?? 'us-east-1',
       endpoint: requiredEnv('S3_ENDPOINT'),
       forcePathStyle: true,
       // Default checksums are rejected by MinIO and break a plain GET of the signed link.
