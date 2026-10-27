@@ -324,6 +324,7 @@ interface TransactionRow {
           ? null
           : await this.prisma.workplace.findFirst({
               where: { id: fields.workplaceId, userId },
+              include: { hourExtras: true },
             });
       if (fields.workplaceId !== null && workplace === null) {
         throw new NotFoundException(`Workplace ${fields.workplaceId} not found`);
@@ -333,6 +334,7 @@ interface TransactionRow {
           ? null
           : await this.prisma.client.findFirst({
               where: { id: fields.clientId, userId },
+              include: { hourExtras: true },
             });
       if (fields.clientId !== null && client === null) {
         throw new NotFoundException(`Client ${fields.clientId} not found`);
@@ -383,7 +385,12 @@ interface TransactionRow {
         }
         const computed = basePenceFromMinutes(
           fields.minutes,
-          effectiveHourRatePence(rated.hourRatePence, rated.pregnancyExtraPence, fields.massageType),
+          effectiveHourRatePence(
+            rated.hourRatePence,
+            rated.hourExtras,
+            fields.massageType,
+            fields.customMassageType,
+          ),
         );
         if (computed < 1) {
           throw new BadRequestException('Base amount is required');

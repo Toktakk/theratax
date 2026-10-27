@@ -1,4 +1,6 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { HourExtraDto } from '../../hour-extras/hour-extra.dto.js';
 
 export class CreateWorkplaceDto {
   @IsString()
@@ -15,8 +17,8 @@ export class CreateWorkplaceDto {
   hourRatePence: number;
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100_000_000)
-  pregnancyExtraPence?: number;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HourExtraDto)
+  hourExtras?: HourExtraDto[];
 }

@@ -308,6 +308,14 @@ ol {
   padding-left: 0.8rem;
 }
 
+.directory-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
 .subcard {
   display: grid;
   gap: 0.6rem;

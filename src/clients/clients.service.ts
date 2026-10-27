@@ -4,8 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
 import type { PublicUser } from '../auth/public-user.js';
+import { hourExtrasResponse, readHourExtras } from '../hour-extras/hour-extra.js';
+import type { HourExtraResponse, StoredHourExtra } from '../hour-extras/hour-extra.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateClientDto } from './dto/create-client.dto.js';
 import type { ListClientsQueryDto } from './dto/list-clients-query.dto.js';
 import type { UpdateClientDto } from './dto/update-client.dto.js';
@@ -14,7 +16,7 @@ export interface ClientResponse {
   id: number;
   name: string;
   hourRatePence: number;
-  pregnancyExtraPence: number;
+  hourExtras: HourExtraResponse[];
   createdAt: string;
   updatedAt: string;
 }
@@ -26,24 +28,39 @@ export interface ClientListResponse {
   limit: number;
 }
 
+interface HourExtraRow {
+  massageType: string;
+  customMassageType: string | null;
+  extraPence: number;
+}
+
 interface ClientRow {
   id: number;
   name: string;
   hourRatePence: number;
-  pregnancyExtraPence: number;
+  hourExtras: HourExtraRow[];
   createdAt: Date;
   updatedAt: Date;
 }
+
+const includeExtras = { hourExtras: true } as const;
 
 function toResponse(row: ClientRow): ClientResponse {
   return {
     id: row.id,
     name: row.name,
     hourRatePence: row.hourRatePence,
-    pregnancyExtraPence: row.pregnancyExtraPence,
+    hourExtras: hourExtrasResponse(row.hourExtras),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function extraCreate(rows: readonly StoredHourExtra[]): { create: StoredHourExtra[] } | undefined {
+  if (rows.length === 0) {
+    return undefined;
+  }
+  return { create: [...rows] };
 }
 
 @Injectable()
@@ -53,13 +70,16 @@ export class ClientsService {
   async create(user: PublicUser, input: CreateClientDto): Promise<ClientResponse> {
     const name = this.readName(input.name);
     await this.requireUniqueName(user.id, name);
+    const rows = readHourExtras(input.hourExtras ?? []);
+    const extras = extraCreate(rows);
     const created = await this.prisma.client.create({
       data: {
         userId: user.id,
         name,
         hourRatePence: input.hourRatePence,
-        pregnancyExtraPence: input.pregnancyExtraPence ?? 0,
+        ...(extras !== undefined ? { hourExtras: extras } : {}),
       },
+      include: includeExtras,
     });
     return toResponse(created);
   }
@@ -74,6 +94,7 @@ export class ClientsService {
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip,
         take: limit,
+        include: includeExtras,
       }),
       this.prisma.client.count({ where }),
     ]);
@@ -93,9 +114,22 @@ export class ClientsService {
     await this.findOwned(user.id, id);
     const name = this.readName(input.name);
     await this.requireUniqueName(user.id, name, id);
+    const rows = input.hourExtras === undefined ? undefined : readHourExtras(input.hourExtras);
     const updated = await this.prisma.client.update({
       where: { id },
-      data: { name },
+      data: {
+        name,
+        ...(input.hourRatePence !== undefined ? { hourRatePence: input.hourRatePence } : {}),
+        ...(rows !== undefined
+          ? {
+              hourExtras: {
+                deleteMany: {},
+                create: rows,
+              },
+            }
+          : {}),
+      },
+      include: includeExtras,
     });
     return toResponse(updated);
   }
@@ -136,6 +170,7 @@ export class ClientsService {
   private async findOwned(userId: number, id: number): Promise<ClientRow> {
     const row = await this.prisma.client.findFirst({
       where: { id, userId },
+      include: includeExtras,
     });
     if (row === null) {
       throw new NotFoundException(`Client ${id} not found`);

@@ -40,6 +40,8 @@ enum MassageType {
   back_neck
   sport
   hot_stone
+  body_scrub
+  request
   other
 }
 
@@ -157,20 +159,34 @@ model Invoice {
 }
 
 model Workplace {
-  id                  Int           @id @default(autoincrement())
-  name                String
-  kind                WorkplaceKind
-  hourRatePence       Int           @default(0)
-  pregnancyExtraPence Int           @default(0)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  userId              Int
-  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions        Transaction[]
-  bonuses             HourlyBonus[]
-  invoices            Invoice[]
+  id            Int           @id @default(autoincrement())
+  name          String
+  kind          WorkplaceKind
+  hourRatePence Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  bonuses       HourlyBonus[]
+  invoices      Invoice[]
+  hourExtras    HourExtra[]
 
   @@index([userId])
+}
+
+model HourExtra {
+  id                Int         @id @default(autoincrement())
+  massageType       MassageType
+  customMassageType String?
+  extraPence        Int
+  workplaceId       Int?
+  clientId          Int?
+  workplace         Workplace?  @relation(fields: [workplaceId], references: [id], onDelete: Cascade)
+  client            Client?     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workplaceId])
+  @@index([clientId])
 }
 
 model HourlyBonus {
@@ -215,16 +231,16 @@ enum QuantityUnit {
 }
 
 model Client {
-  id                  Int           @id @default(autoincrement())
-  name                String
-  hourRatePence       Int           @default(0)
-  pregnancyExtraPence Int           @default(0)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  userId              Int
-  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions        Transaction[]
-  invoices            Invoice[]
+  id            Int           @id @default(autoincrement())
+  name          String
+  hourRatePence Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  invoices      Invoice[]
+  hourExtras    HourExtra[]
 
   @@index([userId])
 }

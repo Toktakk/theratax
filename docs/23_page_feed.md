@@ -76,6 +76,7 @@ Massage Type options, in this order. The label is what the user sees. The value 
 | Sport Massage | `sport` |
 | Hot Stone | `hot_stone` |
 | Body Scrub | `body_scrub` |
+| Request | `request` |
 | Other | `other` |
 
 Use these labels on the row, in the summary, and on an invoice line. Do not invent a second spelling.
@@ -86,7 +87,7 @@ The client dropdown lists `GET /clients`. This page does not create a client. A 
 
 Expense fields stay as they are in step 12. A category dropdown uses the categories the vehicle method allows, in the API's order. Flat-rate mileage asks for miles and does not ask for money. Other expenses ask for money. The hint updates as the note changes and does not call the server. `petrol` under flat rate suggests mileage. The same word under actual cost suggests vehicle costs. `train to clinic` or `uber` suggests Public transport. Parking and tolls stay a user choice of `other`.
 
-Hours use the selected workplace or client. Pregnancy adds that row's `pregnancyExtraPence` to `hourRatePence` before multiplying. Two hours at £25, with a £2 pregnancy extra, is £54 when the type is Pregnancy and £50 for any other type. The line under Hours shows that product, for example `2 hours × £27.00 = £54.00`. No selection, or a rate of 0, does not multiply and tells the user to set an hour rate on Workplace name.
+Hours use the selected workplace or client. An hour extra whose massage type matches the chosen type is added to `hourRatePence` before multiplying. `other` matches `customMassageType`, ignoring case. Two hours at £25, with pregnancy +£2, request +£2, and body scrub +£5, is £54 for Pregnancy, £54 for Request, £60 for Body Scrub, and £50 for Swedish. The line under Hours shows that product, for example `2 hours × £27.00 = £54.00`. No selection, or a rate of 0, does not multiply and tells the user to set an hour rate on Workplace name. The workplace or client choice shows those extras, for example `£25.00/hour · pregnancy +£2.00/hour · body scrub +£5.00/hour · request +£2.00/hour`.
 
 Additional Massage Fee and Bonus use GBP. The screen shows £. Different rows can hold different amounts. Leave the field empty when nothing was received. Empty is omitted or sent as `0`. Both mean no increase.
 
@@ -182,9 +183,9 @@ Lists and creates are limited to the token user. Another user's workplace, clien
 - Cash income appears with no category and no massage keys. `hasReceipt` is `false`.
 - An expense on the same day is listed under that income. A newer day is listed above an older day.
 - Income is the first type choice.
-- Swedish, `minutes` `120`, at a workplace whose hour rate is `2500`, fee `200`, and bonus `500` returns `201`. `basePence` is `5000`. `amountPence` is `5700`. Pregnancy at the same workplace with `pregnancyExtraPence` `200` returns `basePence` `5400`. The workplace name is not copied onto the row.
+- Swedish, `minutes` `120`, at a workplace whose hour rate is `2500`, fee `200`, and bonus `500` returns `201`. `basePence` is `5000`. `amountPence` is `5700`. Pregnancy at the same workplace with hour extra `pregnancy` `200` returns `basePence` `5400`. Request with extra `200` returns `5400`. Body Scrub with extra `500` returns `6000`. The workplace name is not copied onto the row.
 - The same body with the bonus omitted returns `bonusPence: 0` and `amountPence` `5200`.
-- Body Scrub is accepted as `body_scrub` and shown as Body Scrub.
+- Body Scrub is accepted as `body_scrub` and shown as Body Scrub. Request is accepted as `request` and shown as Request.
 - Other without a custom name is `400` `Custom massage type is required`. Other with a custom name shows that name.
 - A negative fee or a negative bonus is `400` and `message` is an array.
 - A massage type on an expense is `400` `Massage type is only valid on income`.

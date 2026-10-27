@@ -10,6 +10,8 @@ export const MASSAGE_TYPES = [
   'back_neck',
   'sport',
   'hot_stone',
+  'body_scrub',
+  'request',
   'other',
 ] as const;
 
@@ -27,6 +29,8 @@ const MASSAGE_TYPE_NAMES: Record<MassageType, string> = {
   back_neck: 'Back & Neck',
   sport: 'Sport Massage',
   hot_stone: 'Hot Stone',
+  body_scrub: 'Body Scrub',
+  request: 'Request',
   other: 'Other',
 };
 

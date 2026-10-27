@@ -4,7 +4,7 @@ This document is the contract, derived from the therapist user flow ([docs/01_us
 
 The running source implements auth, onboarding, categories, transactions, receipts, invoices, the tax summary, workplaces, massage income, a separate hourly-bonus module, the daily income summary, saved clients, and invoices built from records. The React pages in [step 12](14_step12_react_pages.md) are the baseline screens. Current screen requirements are in [Page plans](20_plan_pages.md).
 
-This file is the required contract. Where the running source still uses `HourlyBonus`, `/hourly-bonuses`, or `hourlyBonusPence`, that code does not match this contract. Bonus is `bonusPence` on the massage transaction. `body_scrub` is a massage type. Those two are not in the running source yet. Do not extend the hourly-bonus module.
+This file is the required contract. Where the running source still uses `HourlyBonus`, `/hourly-bonuses`, or `hourlyBonusPence`, that code does not match this contract. Bonus is `bonusPence` on the massage transaction. Do not extend the hourly-bonus module. `body_scrub` and `request` are massage types.
 
 Every clause below cites the flow step or the entity that requires it. Backend modules follow the same ownership: auth, transactions, tax-engine, expense-categories, upload, invoices, and, from the later steps, workplaces, income-summary, and clients. Bonus stays on the transaction.
 
@@ -34,13 +34,14 @@ Phase 2 from the proposal is out of scope and is listed at the end. It is not qu
 | PATCH | `/invoices/:id` | `{ status: "paid", paidOn? }` | yes |
 | GET | `/invoices/:id/pdf` | — | yes |
 | GET | `/tax/summary` | `taxYear` (int, optional) | yes |
-| POST | `/workplaces` | `{ name, kind, hourRatePence, pregnancyExtraPence? }` | yes |
+| POST | `/workplaces` | `{ name, kind, hourRatePence, hourExtras? }` | yes |
 | GET | `/workplaces` | `skip`, `limit` | yes |
+| PATCH | `/workplaces/:id` | `{ name, hourRatePence, hourExtras }` | yes |
 | GET | `/income/summary` | `date` (optional) | yes |
-| POST | `/clients` | `{ name, hourRatePence, pregnancyExtraPence? }` | yes |
+| POST | `/clients` | `{ name, hourRatePence, hourExtras? }` | yes |
 | GET | `/clients` | `skip`, `limit` | yes |
 | GET | `/clients/:id` | — | yes |
-| PATCH | `/clients/:id` | `{ name }` | yes |
+| PATCH | `/clients/:id` | `{ name, hourRatePence?, hourExtras? }` | yes |
 | DELETE | `/clients/:id` | — | yes |
 
 `GET /invoices/preview` is registered before `GET /invoices/:id` so the path `preview` is not parsed as an id.
@@ -209,7 +210,7 @@ Rules, checked against the merged body:
 
 ### Massage income (step 14)
 
-Massage fields live on the same `Transaction` model. There is no second income table. The running source has the types below except `body_scrub`, and it does not yet store `bonusPence`. This contract includes both. [Step 14](16_step14_massage_income.md) adds the type, the base, the fee, and the workplace. [Step 15](17_step15_bonus.md) adds `bonusPence` and changes the sum.
+Massage fields live on the same `Transaction` model. There is no second income table. The running source has the types below. [Step 14](16_step14_massage_income.md) adds the type, the base, the fee, and the workplace. [Step 15](17_step15_bonus.md) adds `bonusPence` and changes the sum.
 
 ```ts
 type MassageType =
@@ -225,6 +226,7 @@ type MassageType =
   | "sport"
   | "hot_stone"
   | "body_scrub"
+  | "request"
   | "other";
 ```
 
@@ -242,6 +244,7 @@ type MassageType =
 | `sport` | Sport Massage |
 | `hot_stone` | Hot Stone |
 | `body_scrub` | Body Scrub |
+| `request` | Request |
 | `other` | Other |
 
 After step 14, income may also send the fields below. `bonusPence` arrives in step 15. Until that step, omit it.
@@ -263,9 +266,9 @@ interface MassageIncomeFields {
 Rules, checked in the service after the pipe:
 
 - Cash income may still send only `amountPence`. Massage keys are then omitted on the response.
-- When `massageType` is set and `minutes` is omitted, `basePence` is required. When `minutes` is sent, the server sets `basePence` from that workplace or client: pregnancy uses `hourRatePence + pregnancyExtraPence`, and every other type uses `hourRatePence`. `basePence = floor((minutes * effectiveRatePence + 30) / 60)`. The row must name `workplaceId` or `clientId`. Neither is `400` `"A workplace or a client is required"`. A stored rate of 0 is `400` `"Hour rate is required"`. A sent `basePence` that is not the computed value is `400` `"Base amount must equal hours times the hour rate"`. `minutes` on cash income or an expense is `400` `"Minutes are only valid on massage income"`.
+- When `massageType` is set and `minutes` is omitted, `basePence` is required. When `minutes` is sent, the server sets `basePence` from that workplace or client. A matching `hourExtras` row is added to `hourRatePence`. `other` matches `customMassageType`, ignoring case. Every type without a matching extra uses `hourRatePence` alone. `basePence = floor((minutes * effectiveRatePence + 30) / 60)`. The row must name `workplaceId` or `clientId`. Neither is `400` `"A workplace or a client is required"`. A stored rate of 0 is `400` `"Hour rate is required"`. A sent `basePence` that is not the computed value is `400` `"Base amount must equal hours times the hour rate"`. `minutes` on cash income or an expense is `400` `"Minutes are only valid on massage income"`.
 - `additionalFeePence` omitted means `0` and the response includes `0`. `bonusPence` omitted means `0` and the response includes `0`. The server sets `amountPence = basePence + additionalFeePence + bonusPence`. A client `amountPence` that is not the sum is `400` `"Amount must equal base plus additional fee and bonus"` when the bonus is greater than 0, and `"Amount must equal base plus additional fee"` when the bonus is 0. If the sum is above `100_000_000`, the message is `400` `"Amount is above the maximum"`.
-- The fee is whatever the user entered. The server does not look up a fee from the massage type. The bonus is whatever the user entered. The hour rate is read from the workplace or the client, not from the massage type, except that pregnancy adds that row's pregnancy extra.
+- The fee is whatever the user entered. The server does not look up a fee from the massage type. The bonus is whatever the user entered. The hour rate is read from the workplace or the client. Pregnancy, hot stone, body scrub, request, and a matching other name add that row's hour extra. A later edit of the workplace or client does not change `basePence` already stored on a transaction.
 - `customMassageType` is required when the type is `other`, and forbidden otherwise. Missing: `400` `"Custom massage type is required"`. Present on another type: `400` `"Custom massage type is only valid for other"`.
 - A massage type on an expense is `400` `"Massage type is only valid on income"`. A base, a fee, or a custom type on an expense is `400` `"Additional fee is only valid on massage income"`. A bonus on an expense, or a bonus without a massage type, is `400` `"Bonus is only valid on massage income"`. `workplaceId` on an expense is `400` `"Workplace is only valid on income"`.
 - `workplaceId` must be a workplace owned by the token user. A missing row and another user's id are both `404` `"Workplace <id> not found"`. The transaction stores the id, not a copy of the name.
@@ -492,12 +495,18 @@ Until [step 14](16_step14_massage_income.md), transactions are ordered by `occur
 A workplace is a spa or a clinic the user bills or works at. The transaction stores `workplaceId`. It does not copy the name. Invoice issue copies the name onto the invoice, in step 17, so a later rename does not rewrite an issued invoice.
 
 ```ts
+interface HourExtra {
+  massageType: "pregnancy" | "hot_stone" | "body_scrub" | "request" | "other";
+  customMassageType?: string; // 1–100 characters after trim, required only when massageType is "other"
+  extraPence: number;         // integer, 1 .. 100_000_000
+}
+
 interface Workplace {
   id: number;
   name: string;
   kind: "spa" | "clinic";
-  hourRatePence: number;       // integer pence per hour
-  pregnancyExtraPence: number; // added to the hourly rate only for massage type pregnancy
+  hourRatePence: number; // integer pence per hour
+  hourExtras: HourExtra[]; // pregnancy, hot stone, body scrub, request, then other by name
   createdAt: string;
   updatedAt: string;
 }
@@ -509,10 +518,22 @@ interface Workplace {
 interface CreateWorkplace {
   name: string;              // trimmed, then 1–200 characters
   kind: "spa" | "clinic";
-  hourRatePence: number;       // integer, 1 .. 100_000_000
-  pregnancyExtraPence?: number; // integer, 0 .. 100_000_000, default 0
+  hourRatePence: number;     // integer, 1 .. 100_000_000
+  hourExtras?: HourExtra[];  // omitted means none
 }
 ```
+
+`PATCH /workplaces/:id` body:
+
+```ts
+interface UpdateWorkplace {
+  name: string;
+  hourRatePence: number;
+  hourExtras: HourExtra[]; // replaces the stored extras, including an empty list
+}
+```
+
+`kind` is not changed. A missing workplace and another user's id are `404` `"Workplace <id> not found"`. The same user, the same `kind`, and the same name ignoring case, on a different id, is `409` `"Workplace already saved"`. A repeated massage type, or the same other name ignoring case, is `400` `"Hour extra already set for this massage type"`. Other without a name is `400` `"Custom massage type is required"`. A custom name on another type is `400` `"Custom massage type is only valid for other"`.
 
 `201` returns the `Workplace`. The same user, the same `kind`, and the same name ignoring case is `409`:
 
@@ -526,7 +547,7 @@ interface CreateWorkplace {
 
 Bearer is required. Before onboarding the response is `403` `"Complete onboarding before using this resource"`. A missing token is `401` `"Unauthorized"`.
 
-Postman: `POST` `{ "name": "North Spa", "kind": "spa", "hourRatePence": 2500, "pregnancyExtraPence": 200 }` returns `201`. `hourRatePence` is `2500` (£25 per hour) and `pregnancyExtraPence` is `200` (£2 per hour, added only for pregnancy). The same name with different capital letters returns `409` `"Workplace already saved"`. `{ "name": "North Spa", "kind": "clinic", "hourRatePence": 2500 }` returns `201` and `pregnancyExtraPence` is `0`. `GET /workplaces` with a second user's token does not include the first user's ids. An empty `name`, `kind` `"hotel"`, or a missing hour rate is `400` and `message` is an array.
+Postman: `POST` `{ "name": "North Spa", "kind": "spa", "hourRatePence": 2500, "hourExtras": [{ "massageType": "pregnancy", "extraPence": 200 }, { "massageType": "request", "extraPence": 200 }, { "massageType": "body_scrub", "extraPence": 500 }] }` returns `201`. `hourRatePence` is `2500` (£25 per hour). `hourExtras` lists pregnancy `200`, body scrub `500`, then request `200`. The same name with different capital letters returns `409` `"Workplace already saved"`. `{ "name": "North Spa", "kind": "clinic", "hourRatePence": 2500 }` returns `201` and `hourExtras` is `[]`. `PATCH /workplaces/:id` with a new name and the same rate returns `200`. `GET /workplaces` with a second user's token does not include the first user's ids. An empty `name`, `kind` `"hotel"`, or a missing hour rate is `400` and `message` is an array. Two pregnancy extras is `400` `"Hour extra already set for this massage type"`.
 
 ## Daily income summary (step 16)
 
@@ -591,15 +612,15 @@ interface Client {
   id: number;
   name: string;
   hourRatePence: number;
-  pregnancyExtraPence: number;
+  hourExtras: HourExtra[];
   createdAt: string;
   updatedAt: string;
 }
 ```
 
-`POST /clients` takes `{ name, hourRatePence, pregnancyExtraPence? }`. `name` is trimmed to 1–200 characters. `hourRatePence` is an integer from 1 to `100_000_000`. `pregnancyExtraPence` is an optional integer from 0 to `100_000_000` and defaults to 0. The response is `201`. The same user and the same name ignoring case is `409` `"Client already saved"`. `GET /clients` uses the list envelope, ordered by `name` ascending, then `id` ascending. `GET /clients/:id` returns one. A missing id and another user's id are `404` `"Client <id> not found"`. A rename does not change the stored hour rate.
+`POST /clients` takes `{ name, hourRatePence, hourExtras? }`. `name` is trimmed to 1–200 characters. `hourRatePence` is an integer from 1 to `100_000_000`. `hourExtras` uses the same rules as a workplace and defaults to none. The response is `201`. The same user and the same name ignoring case is `409` `"Client already saved"`. `GET /clients` uses the list envelope, ordered by `name` ascending, then `id` ascending. `GET /clients/:id` returns one. A missing id and another user's id are `404` `"Client <id> not found"`.
 
-`PATCH /clients/:id` takes `{ name }` and returns `200`. A rename does not change `recipientName` on an invoice already issued. `DELETE` returns `204`. A client referenced by a transaction or an invoice is `409` `"Client is used by a record"`.
+`PATCH /clients/:id` takes `{ name, hourRatePence?, hourExtras? }` and returns `200`. A field that is omitted stays as stored. `hourExtras`, including `[]`, replaces the stored extras. A rename does not change `recipientName` on an invoice already issued. `DELETE` returns `204`. A client referenced by a transaction or an invoice is `409` `"Client is used by a record"`.
 
 Postman: create `Ada Client` with `hourRatePence` `2500`, create `ada client` with the same rate, and read `409` on the second. With another user's token, `GET /clients/:id` for the first id is `404`. A body with no `hourRatePence` is `400` and `message` is an array.
 

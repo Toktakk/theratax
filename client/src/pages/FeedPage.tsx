@@ -9,6 +9,7 @@ import {
   effectiveHourRatePence,
   expenseMethodLabel,
   formatPounds,
+  formatRateText,
   hoursLabel,
   isMassageType,
   MASSAGE_OPTIONS,
@@ -416,8 +417,18 @@ export function FeedPage({ user }: FeedPageProps) {
 
   const parsedHours = readHours(hours);
   const rated = massage ? rateOf(party, workplaces, clients) : null;
-  const draft = massageDraft(massage, massageType, parsedHours, rated, feePounds, feePence, bonusPounds, bonusPence);
-  const hourHint = massage ? hourPreview(parsedHours, rated, massageType) : '';
+  const draft = massageDraft(
+    massage,
+    massageType,
+    customMassageType,
+    parsedHours,
+    rated,
+    feePounds,
+    feePence,
+    bonusPounds,
+    bonusPence,
+  );
+  const hourHint = massage ? hourPreview(parsedHours, rated, massageType, customMassageType) : '';
 
   return (
     <div className="stack">
@@ -525,14 +536,14 @@ export function FeedPage({ user }: FeedPageProps) {
                     {workplaces.map((workplace) => (
                       <option key={`workplace-${workplace.id}`} value={`workplace:${workplace.id}`}>
                         {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
-                        {rateText(workplace.hourRatePence, workplace.pregnancyExtraPence)}
+                        {formatRateText(workplace.hourRatePence, workplace.hourExtras)}
                       </option>
                     ))}
                   </optgroup>
                   <optgroup label="Clients">
                     {clients.map((client) => (
                       <option key={`client-${client.id}`} value={`client:${client.id}`}>
-                        {client.name} · {rateText(client.hourRatePence, client.pregnancyExtraPence)}
+                        {client.name} · {formatRateText(client.hourRatePence, client.hourExtras)}
                       </option>
                     ))}
                   </optgroup>
@@ -865,19 +876,11 @@ function partyName(
   return null;
 }
 
-function rateText(hourRatePence: number, pregnancyExtraPence: number): string {
-  const rate = `${formatPounds(hourRatePence)}/hour`;
-  if (pregnancyExtraPence > 0) {
-    return `${rate} · pregnancy +${formatPounds(pregnancyExtraPence)}/hour`;
-  }
-  return rate;
-}
-
 function rateOf(
   party: string,
   workplaces: readonly Workplace[],
   clients: readonly Client[],
-): { hourRatePence: number; pregnancyExtraPence: number } | null {
+): { hourRatePence: number; hourExtras: Workplace['hourExtras'] } | null {
   const chosen = chosenParty(party);
   if (chosen.workplaceId !== undefined) {
     const workplace = workplaces.find((row) => row.id === chosen.workplaceId);
@@ -886,7 +889,7 @@ function rateOf(
     }
     return {
       hourRatePence: workplace.hourRatePence,
-      pregnancyExtraPence: workplace.pregnancyExtraPence,
+      hourExtras: workplace.hourExtras,
     };
   }
   if (chosen.clientId !== undefined) {
@@ -896,7 +899,7 @@ function rateOf(
     }
     return {
       hourRatePence: client.hourRatePence,
-      pregnancyExtraPence: client.pregnancyExtraPence,
+      hourExtras: client.hourExtras,
     };
   }
   return null;
@@ -904,8 +907,9 @@ function rateOf(
 
 function hourPreview(
   parsedHours: { ok: true; minutes: number | undefined } | { ok: false; message: string },
-  rated: { hourRatePence: number; pregnancyExtraPence: number } | null,
+  rated: { hourRatePence: number; hourExtras: Workplace['hourExtras'] } | null,
   massageType: string,
+  customMassageType: string,
 ): string {
   if (!parsedHours.ok) {
     return parsedHours.message;
@@ -916,7 +920,12 @@ function hourPreview(
   if (rated === null || rated.hourRatePence < 1) {
     return 'Set an hour rate on Workplace name.';
   }
-  const rate = effectiveHourRatePence(rated.hourRatePence, rated.pregnancyExtraPence, massageType);
+  const rate = effectiveHourRatePence(
+    rated.hourRatePence,
+    rated.hourExtras,
+    massageType,
+    customMassageType,
+  );
   const base = basePenceFromMinutes(parsedHours.minutes, rate);
   return `${hoursLabel(parsedHours.minutes)} × ${formatPounds(rate)} = ${formatPounds(base)}`;
 }
@@ -924,8 +933,9 @@ function hourPreview(
 function massageDraft(
   massage: boolean,
   massageType: string,
+  customMassageType: string,
   parsedHours: { ok: true; minutes: number | undefined } | { ok: false; message: string },
-  rated: { hourRatePence: number; pregnancyExtraPence: number } | null,
+  rated: { hourRatePence: number; hourExtras: Workplace['hourExtras'] } | null,
   feePounds: string,
   feePence: string,
   bonusPounds: string,
@@ -942,7 +952,7 @@ function massageDraft(
   return {
     basePence: basePenceFromMinutes(
       parsedHours.minutes,
-      effectiveHourRatePence(rated.hourRatePence, rated.pregnancyExtraPence, massageType),
+      effectiveHourRatePence(rated.hourRatePence, rated.hourExtras, massageType, customMassageType),
     ),
     additionalFeePence: fee.ok ? (fee.amountPence ?? 0) : 0,
     bonusPence: bonus.ok ? (bonus.amountPence ?? 0) : 0,

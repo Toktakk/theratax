@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { messageOf, request } from './api.ts';
 import { FormError } from './FormError.tsx';
-import { readAmountPence, readOptionalAmount } from './format.ts';
-import type { Client, Workplace, WorkplaceKind } from './types.ts';
+import {
+  compareHourExtras,
+  formatPounds,
+  HOUR_EXTRA_OPTIONS,
+  hourExtraLabel,
+  readAmountPence,
+  splitAmount,
+} from './format.ts';
+import type { Client, HourExtra, HourExtraType, Workplace, WorkplaceKind } from './types.ts';
 
 export function SaveWorkplaceForm({
   kind,
@@ -15,8 +22,7 @@ export function SaveWorkplaceForm({
   const [picked, setPicked] = useState<WorkplaceKind>(kind ?? 'spa');
   const [hourPounds, setHourPounds] = useState('');
   const [hourPence, setHourPence] = useState('');
-  const [extraPounds, setExtraPounds] = useState('');
-  const [extraPence, setExtraPence] = useState('');
+  const [extras, setExtras] = useState<HourExtra[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -36,11 +42,6 @@ export function SaveWorkplaceForm({
       setError('Enter an hour rate.');
       return;
     }
-    const extra = readOptionalAmount(extraPounds, extraPence);
-    if (!extra.ok) {
-      setError(extra.message);
-      return;
-    }
     setError('');
     setSaving(true);
     try {
@@ -50,14 +51,13 @@ export function SaveWorkplaceForm({
           name: name.trim(),
           kind: picked,
           hourRatePence: hourRate.amountPence,
-          ...(extra.amountPence !== undefined ? { pregnancyExtraPence: extra.amountPence } : {}),
+          hourExtras: extrasPayload(extras),
         },
       });
       setName('');
       setHourPounds('');
       setHourPence('');
-      setExtraPounds('');
-      setExtraPence('');
+      setExtras([]);
       onCreated(created);
     } catch (caught: unknown) {
       setError(messageOf(caught));
@@ -94,14 +94,7 @@ export function SaveWorkplaceForm({
         onPounds={setHourPounds}
         onPence={setHourPence}
       />
-      <MoneyFields
-        legend="Pregnancy extra per hour"
-        pounds={extraPounds}
-        pence={extraPence}
-        onPounds={setExtraPounds}
-        onPence={setExtraPence}
-        hint="Leave empty when pregnancy massage uses the same hourly rate."
-      />
+      <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
       {kind === undefined ? (
         <label className="field">
           Kind
@@ -127,12 +120,20 @@ export function SaveWorkplaceForm({
   );
 }
 
-export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => void }) {
-  const [name, setName] = useState('');
-  const [hourPounds, setHourPounds] = useState('');
-  const [hourPence, setHourPence] = useState('');
-  const [extraPounds, setExtraPounds] = useState('');
-  const [extraPence, setExtraPence] = useState('');
+export function EditWorkplaceForm({
+  workplace,
+  onSaved,
+  onCancel,
+}: {
+  workplace: Workplace;
+  onSaved: (workplace: Workplace) => void;
+  onCancel: () => void;
+}) {
+  const hour = splitAmount(workplace.hourRatePence);
+  const [name, setName] = useState(workplace.name);
+  const [hourPounds, setHourPounds] = useState(hour.pounds);
+  const [hourPence, setHourPence] = useState(hour.pence);
+  const [extras, setExtras] = useState<HourExtra[]>(workplace.hourExtras);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -146,9 +147,75 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
       setError('Enter an hour rate.');
       return;
     }
-    const extra = readOptionalAmount(extraPounds, extraPence);
-    if (!extra.ok) {
-      setError(extra.message);
+    setError('');
+    setSaving(true);
+    try {
+      const updated = await request<Workplace>(`/workplaces/${workplace.id}`, {
+        method: 'PATCH',
+        json: {
+          name: name.trim(),
+          hourRatePence: hourRate.amountPence,
+          hourExtras: extrasPayload(extras),
+        },
+      });
+      onSaved(updated);
+    } catch (caught: unknown) {
+      setError(messageOf(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="subcard">
+      <p className="muted">{workplace.kind === 'spa' ? 'Spa' : 'Clinic'}</p>
+      <label className="field">
+        Workplace name
+        <input
+          value={name}
+          maxLength={200}
+          onChange={(event) => {
+            setName(event.target.value);
+          }}
+        />
+      </label>
+      <MoneyFields
+        legend="Hour rate"
+        pounds={hourPounds}
+        pence={hourPence}
+        onPounds={setHourPounds}
+        onPence={setHourPence}
+      />
+      <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
+      <FormError message={error} />
+      <div className="actions">
+        <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button className="button-ghost" type="button" disabled={saving} onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => void }) {
+  const [name, setName] = useState('');
+  const [hourPounds, setHourPounds] = useState('');
+  const [hourPence, setHourPence] = useState('');
+  const [extras, setExtras] = useState<HourExtra[]>([]);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const hourRate = readAmountPence(hourPounds, hourPence);
+    if (!hourRate.ok) {
+      setError(hourRate.message);
+      return;
+    }
+    if (hourRate.amountPence < 1) {
+      setError('Enter an hour rate.');
       return;
     }
     setError('');
@@ -159,14 +226,13 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
         json: {
           name: name.trim(),
           hourRatePence: hourRate.amountPence,
-          ...(extra.amountPence !== undefined ? { pregnancyExtraPence: extra.amountPence } : {}),
+          hourExtras: extrasPayload(extras),
         },
       });
       setName('');
       setHourPounds('');
       setHourPence('');
-      setExtraPounds('');
-      setExtraPence('');
+      setExtras([]);
       onCreated(created);
     } catch (caught: unknown) {
       setError(messageOf(caught));
@@ -201,19 +267,198 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
         onPounds={setHourPounds}
         onPence={setHourPence}
       />
-      <MoneyFields
-        legend="Pregnancy extra per hour"
-        pounds={extraPounds}
-        pence={extraPence}
-        onPounds={setExtraPounds}
-        onPence={setExtraPence}
-        hint="Leave empty when pregnancy massage uses the same hourly rate."
-      />
+      <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
       <FormError message={error} />
       <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
         {saving ? 'Saving…' : 'Save client'}
       </button>
     </div>
+  );
+}
+
+export function EditClientForm({
+  client,
+  onSaved,
+  onCancel,
+}: {
+  client: Client;
+  onSaved: (client: Client) => void;
+  onCancel: () => void;
+}) {
+  const hour = splitAmount(client.hourRatePence);
+  const [name, setName] = useState(client.name);
+  const [hourPounds, setHourPounds] = useState(hour.pounds);
+  const [hourPence, setHourPence] = useState(hour.pence);
+  const [extras, setExtras] = useState<HourExtra[]>(client.hourExtras);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const hourRate = readAmountPence(hourPounds, hourPence);
+    if (!hourRate.ok) {
+      setError(hourRate.message);
+      return;
+    }
+    if (hourRate.amountPence < 1) {
+      setError('Enter an hour rate.');
+      return;
+    }
+    setError('');
+    setSaving(true);
+    try {
+      const updated = await request<Client>(`/clients/${client.id}`, {
+        method: 'PATCH',
+        json: {
+          name: name.trim(),
+          hourRatePence: hourRate.amountPence,
+          hourExtras: extrasPayload(extras),
+        },
+      });
+      onSaved(updated);
+    } catch (caught: unknown) {
+      setError(messageOf(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="subcard">
+      <label className="field">
+        Client name
+        <input
+          value={name}
+          maxLength={200}
+          onChange={(event) => {
+            setName(event.target.value);
+          }}
+        />
+      </label>
+      <MoneyFields
+        legend="Hour rate"
+        pounds={hourPounds}
+        pence={hourPence}
+        onPounds={setHourPounds}
+        onPence={setHourPence}
+      />
+      <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
+      <FormError message={error} />
+      <div className="actions">
+        <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button className="button-ghost" type="button" disabled={saving} onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HourExtrasEditor({
+  extras,
+  onChange,
+  disabled,
+}: {
+  extras: readonly HourExtra[];
+  onChange: (extras: HourExtra[]) => void;
+  disabled: boolean;
+}) {
+  const [massageType, setMassageType] = useState<HourExtraType>('pregnancy');
+  const [customName, setCustomName] = useState('');
+  const [pounds, setPounds] = useState('');
+  const [pence, setPence] = useState('');
+  const [error, setError] = useState('');
+  const shown = [...extras].sort(compareHourExtras);
+
+  function addExtra() {
+    const money = readAmountPence(pounds, pence);
+    if (!money.ok) {
+      setError(money.message);
+      return;
+    }
+    if (money.amountPence < 1) {
+      setError('Enter an extra amount.');
+      return;
+    }
+    const custom = customName.trim();
+    if (massageType === 'other' && custom === '') {
+      setError('Custom massage type is required');
+      return;
+    }
+    const next: HourExtra =
+      massageType === 'other'
+        ? { massageType, customMassageType: custom, extraPence: money.amountPence }
+        : { massageType, extraPence: money.amountPence };
+    if (extras.some((row) => hourExtraKey(row) === hourExtraKey(next))) {
+      setError('Hour extra already set for this massage type');
+      return;
+    }
+    setError('');
+    onChange([...extras, next]);
+    setCustomName('');
+    setPounds('');
+    setPence('');
+  }
+
+  return (
+    <fieldset disabled={disabled}>
+      <legend>Extra per hour</legend>
+      <div className="list">
+        {shown.map((extra) => (
+          <div key={hourExtraKey(extra)} className="directory-row">
+            <span>
+              {hourExtraLabel(extra)} +{formatPounds(extra.extraPence)}/hour
+            </span>
+            <button
+              className="button-ghost"
+              type="button"
+              onClick={() => {
+                onChange(extras.filter((row) => hourExtraKey(row) !== hourExtraKey(extra)));
+              }}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+      <label className="field">
+        Massage type
+        <select
+          value={massageType}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (isHourExtraType(value)) {
+              setMassageType(value);
+            }
+          }}
+        >
+          {HOUR_EXTRA_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {massageType === 'other' ? (
+        <label className="field">
+          Treatment name
+          <input
+            value={customName}
+            maxLength={100}
+            onChange={(event) => {
+              setCustomName(event.target.value);
+            }}
+          />
+        </label>
+      ) : null}
+      <MoneyFields legend="Extra" pounds={pounds} pence={pence} onPounds={setPounds} onPence={setPence} />
+      <FormError message={error} />
+      <button className="button-ghost" type="button" onClick={addExtra}>
+        Add treatment
+      </button>
+      <span className="muted">Add one row per treatment that pays more than the hour rate.</span>
+    </fieldset>
   );
 }
 
@@ -223,14 +468,12 @@ function MoneyFields({
   pence,
   onPounds,
   onPence,
-  hint,
 }: {
   legend: string;
   pounds: string;
   pence: string;
   onPounds: (value: string) => void;
   onPence: (value: string) => void;
-  hint?: string;
 }) {
   return (
     <fieldset>
@@ -258,13 +501,41 @@ function MoneyFields({
           />
         </label>
       </div>
-      {hint === undefined ? null : <span className="muted">{hint}</span>}
     </fieldset>
   );
+}
+
+function extrasPayload(extras: readonly HourExtra[]): HourExtra[] {
+  return [...extras].sort(compareHourExtras).map((extra) =>
+    extra.massageType === 'other'
+      ? {
+          massageType: extra.massageType,
+          customMassageType: extra.customMassageType ?? '',
+          extraPence: extra.extraPence,
+        }
+      : { massageType: extra.massageType, extraPence: extra.extraPence },
+  );
+}
+
+function hourExtraKey(extra: HourExtra): string {
+  if (extra.massageType === 'other') {
+    return `other:${(extra.customMassageType ?? '').trim().toLowerCase()}`;
+  }
+  return extra.massageType;
+}
+
+function isHourExtraType(value: string): value is HourExtraType {
+  return HOUR_EXTRA_OPTIONS.some((option) => option.value === value);
 }
 
 export function insertByName<T extends { id: number; name: string }>(rows: readonly T[], created: T): T[] {
   return [...rows, created].sort(
     (left, right) => left.name.localeCompare(right.name) || left.id - right.id,
   );
+}
+
+export function replaceByName<T extends { id: number; name: string }>(rows: readonly T[], updated: T): T[] {
+  return rows
+    .map((row) => (row.id === updated.id ? updated : row))
+    .sort((left, right) => left.name.localeCompare(right.name) || left.id - right.id);
 }

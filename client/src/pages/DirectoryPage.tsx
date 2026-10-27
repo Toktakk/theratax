@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import { messageOf, request } from '../api.ts';
-import { insertByName, SaveClientForm, SaveWorkplaceForm } from '../directory-forms.tsx';
-import { formatPounds } from '../format.ts';
+import {
+  EditClientForm,
+  EditWorkplaceForm,
+  insertByName,
+  replaceByName,
+  SaveClientForm,
+  SaveWorkplaceForm,
+} from '../directory-forms.tsx';
+import { formatRateText } from '../format.ts';
 import { FormError } from '../FormError.tsx';
 import type { Client, ListResponse, Workplace } from '../types.ts';
-
-function rateText(hourRatePence: number, pregnancyExtraPence: number): string {
-  const rate = `${formatPounds(hourRatePence)}/hour`;
-  if (pregnancyExtraPence > 0) {
-    return `${rate} · pregnancy +${formatPounds(pregnancyExtraPence)}/hour`;
-  }
-  return rate;
-}
 
 export function DirectoryPage() {
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
@@ -22,6 +21,8 @@ export function DirectoryPage() {
   const [clientsLoading, setClientsLoading] = useState(true);
   const [workplacesError, setWorkplacesError] = useState('');
   const [clientsError, setClientsError] = useState('');
+  const [editingWorkplaceId, setEditingWorkplaceId] = useState<number | null>(null);
+  const [editingClientId, setEditingClientId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,12 +83,37 @@ export function DirectoryPage() {
           </p>
         ) : null}
         <div className="list">
-          {workplaces.map((workplace) => (
-            <p key={workplace.id}>
-              {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
-              {rateText(workplace.hourRatePence, workplace.pregnancyExtraPence)}
-            </p>
-          ))}
+          {workplaces.map((workplace) =>
+            editingWorkplaceId === workplace.id ? (
+              <EditWorkplaceForm
+                key={workplace.id}
+                workplace={workplace}
+                onSaved={(updated) => {
+                  setWorkplaces((current) => replaceByName(current, updated));
+                  setEditingWorkplaceId(null);
+                }}
+                onCancel={() => {
+                  setEditingWorkplaceId(null);
+                }}
+              />
+            ) : (
+              <div key={workplace.id} className="directory-row">
+                <p>
+                  {workplace.name} · {workplace.kind === 'spa' ? 'Spa' : 'Clinic'} ·{' '}
+                  {formatRateText(workplace.hourRatePence, workplace.hourExtras)}
+                </p>
+                <button
+                  className="button-ghost"
+                  type="button"
+                  onClick={() => {
+                    setEditingWorkplaceId(workplace.id);
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
+            ),
+          )}
         </div>
         <SaveWorkplaceForm
           onCreated={(workplace) => {
@@ -109,11 +135,36 @@ export function DirectoryPage() {
           </p>
         ) : null}
         <div className="list">
-          {clients.map((client) => (
-            <p key={client.id}>
-              {client.name} · {rateText(client.hourRatePence, client.pregnancyExtraPence)}
-            </p>
-          ))}
+          {clients.map((client) =>
+            editingClientId === client.id ? (
+              <EditClientForm
+                key={client.id}
+                client={client}
+                onSaved={(updated) => {
+                  setClients((current) => replaceByName(current, updated));
+                  setEditingClientId(null);
+                }}
+                onCancel={() => {
+                  setEditingClientId(null);
+                }}
+              />
+            ) : (
+              <div key={client.id} className="directory-row">
+                <p>
+                  {client.name} · {formatRateText(client.hourRatePence, client.hourExtras)}
+                </p>
+                <button
+                  className="button-ghost"
+                  type="button"
+                  onClick={() => {
+                    setEditingClientId(client.id);
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
+            ),
+          )}
         </div>
         <SaveClientForm
           onCreated={(client) => {

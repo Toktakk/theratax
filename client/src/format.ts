@@ -1,4 +1,4 @@
-import type { ExpenseMethod, MassageType, PracticeType } from './types.ts';
+import type { ExpenseMethod, HourExtra, HourExtraType, MassageType, PracticeType } from './types.ts';
 
 export const MASSAGE_OPTIONS: readonly { value: MassageType; label: string }[] = [
   { value: 'deep_tissue', label: 'Deep Tissue' },
@@ -13,6 +13,15 @@ export const MASSAGE_OPTIONS: readonly { value: MassageType; label: string }[] =
   { value: 'sport', label: 'Sport Massage' },
   { value: 'hot_stone', label: 'Hot Stone' },
   { value: 'body_scrub', label: 'Body Scrub' },
+  { value: 'request', label: 'Request' },
+  { value: 'other', label: 'Other' },
+];
+
+export const HOUR_EXTRA_OPTIONS: readonly { value: HourExtraType; label: string }[] = [
+  { value: 'pregnancy', label: 'Pregnancy' },
+  { value: 'hot_stone', label: 'Hot Stone' },
+  { value: 'body_scrub', label: 'Body Scrub' },
+  { value: 'request', label: 'Request' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -66,15 +75,82 @@ export function massageTypeLabel(massageType: string, customMassageType?: string
   return found === undefined ? massageType : found.label;
 }
 
+export function hourExtraLabel(extra: { massageType: string; customMassageType?: string }): string {
+  if (extra.massageType === 'other') {
+    return extra.customMassageType ?? 'other';
+  }
+  if (extra.massageType === 'hot_stone') {
+    return 'hot stone';
+  }
+  if (extra.massageType === 'body_scrub') {
+    return 'body scrub';
+  }
+  return extra.massageType;
+}
+
+export function compareHourExtras(
+  left: { massageType: string; customMassageType?: string },
+  right: { massageType: string; customMassageType?: string },
+): number {
+  const typeDiff = extraOrder(left.massageType) - extraOrder(right.massageType);
+  if (typeDiff !== 0) {
+    return typeDiff;
+  }
+  return (left.customMassageType ?? '').localeCompare(right.customMassageType ?? '', undefined, {
+    sensitivity: 'base',
+  });
+}
+
+function extraOrder(massageType: string): number {
+  const index = HOUR_EXTRA_OPTIONS.findIndex((option) => option.value === massageType);
+  return index === -1 ? HOUR_EXTRA_OPTIONS.length : index;
+}
+
+export function formatRateText(hourRatePence: number, hourExtras: readonly HourExtra[]): string {
+  const rate = `${formatPounds(hourRatePence)}/hour`;
+  const extras = [...hourExtras].sort(compareHourExtras);
+  if (extras.length === 0) {
+    return rate;
+  }
+  const parts = extras.map(
+    (extra) => `${hourExtraLabel(extra)} +${formatPounds(extra.extraPence)}/hour`,
+  );
+  return `${rate} · ${parts.join(' · ')}`;
+}
+
+export function splitAmount(amountPence: number): { pounds: string; pence: string } {
+  const pounds = Math.trunc(amountPence / 100);
+  const pence = amountPence % 100;
+  return {
+    pounds: String(pounds),
+    pence: String(pence).padStart(2, '0'),
+  };
+}
+
 export function effectiveHourRatePence(
   hourRatePence: number,
-  pregnancyExtraPence: number,
+  hourExtras: readonly { massageType: string; customMassageType?: string | null; extraPence: number }[],
   massageType: string,
+  customMassageType?: string | null,
 ): number {
-  if (massageType === 'pregnancy') {
-    return hourRatePence + pregnancyExtraPence;
+  return hourRatePence + extraPenceFor(hourExtras, massageType, customMassageType);
+}
+
+function extraPenceFor(
+  hourExtras: readonly { massageType: string; customMassageType?: string | null; extraPence: number }[],
+  massageType: string,
+  customMassageType?: string | null,
+): number {
+  if (massageType === 'other') {
+    const name = (customMassageType ?? '').trim().toLowerCase();
+    const found = hourExtras.find(
+      (row) =>
+        row.massageType === 'other' && (row.customMassageType ?? '').trim().toLowerCase() === name,
+    );
+    return found === undefined ? 0 : found.extraPence;
   }
-  return hourRatePence;
+  const found = hourExtras.find((row) => row.massageType === massageType);
+  return found === undefined ? 0 : found.extraPence;
 }
 
 export function basePenceFromMinutes(minutes: number, effectiveRatePence: number): number {

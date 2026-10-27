@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { OnboardedGuard } from '../auth/onboarded.guard.js';
 import type { PublicUser } from '../auth/public-user.js';
 import { CreateWorkplaceDto } from './dto/create-workplace.dto.js';
 import { ListWorkplacesQueryDto } from './dto/list-workplaces-query.dto.js';
+import { UpdateWorkplaceDto } from './dto/update-workplace.dto.js';
 import { WorkplacesService } from './workplaces.service.js';
 import type { WorkplaceListResponse, WorkplaceResponse } from './workplaces.service.js';
 
@@ -27,5 +28,14 @@ export class WorkplacesController {
     @Query() query: ListWorkplacesQueryDto,
   ): Promise<WorkplaceListResponse> {
     return this.workplacesService.list(user, query);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: PublicUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateWorkplaceDto,
+  ): Promise<WorkplaceResponse> {
+    return this.workplacesService.update(user, id, body);
   }
 }

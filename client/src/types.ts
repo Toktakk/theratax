@@ -47,7 +47,16 @@ export type MassageType =
   | 'sport'
   | 'hot_stone'
   | 'body_scrub'
+  | 'request'
   | 'other';
+
+export type HourExtraType = 'pregnancy' | 'hot_stone' | 'body_scrub' | 'request' | 'other';
+
+export interface HourExtra {
+  massageType: HourExtraType;
+  customMassageType?: string;
+  extraPence: number;
+}
 
 export type WorkplaceKind = 'spa' | 'clinic';
 
@@ -60,7 +69,7 @@ export interface Workplace {
   name: string;
   kind: WorkplaceKind;
   hourRatePence: number;
-  pregnancyExtraPence: number;
+  hourExtras: HourExtra[];
   createdAt: string;
   updatedAt: string;
 }
@@ -69,7 +78,7 @@ export interface Client {
   id: number;
   name: string;
   hourRatePence: number;
-  pregnancyExtraPence: number;
+  hourExtras: HourExtra[];
   createdAt: string;
   updatedAt: string;
 }
