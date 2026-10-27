@@ -20,4 +20,16 @@ describe('create transaction', () => {
     expect(Object.prototype.hasOwnProperty.call(income, 'file')).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(expense, 'file')).toBe(false);
   });
+
+  it('rejects a negative additional fee as a list of validation errors', async () => {
+    const dto = plainToInstance(CreateTransactionDto, {
+      type: 'income',
+      amountPence: 100,
+      additionalFeePence: -1,
+    });
+    const errors = await validate(dto);
+    expect(Array.isArray(errors)).toBe(true);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((error) => error.property === 'additionalFeePence')).toBe(true);
+  });
 });

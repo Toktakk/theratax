@@ -59,4 +59,34 @@ describe('buildInvoiceLines', () => {
       sourceTransactionId: 1,
     });
   });
+
+  it('omits a zero fee and bonus and uses amountPence when base is missing', () => {
+    const lines = buildInvoiceLines({
+      incomes: [
+        {
+          id: 3,
+          occurredOn: '02-05-2026',
+          amountPence: 4000,
+          basePence: null,
+          additionalFeePence: 0,
+          bonusPence: 0,
+          massageType: null,
+          customMassageType: null,
+        },
+      ],
+    });
+
+    expect(lines).toEqual([
+      {
+        kind: 'service',
+        description: 'Income',
+        quantity: 1,
+        quantityUnit: 'session',
+        ratePence: 4000,
+        amountPence: 4000,
+        occurredOn: '02-05-2026',
+        sourceTransactionId: 3,
+      },
+    ]);
+  });
 });

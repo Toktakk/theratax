@@ -59,4 +59,49 @@ describe('summariseDay', () => {
     expect(summary.byWorkplace).toEqual([]);
     expect(summary.byMassageType).toEqual([]);
   });
+
+  it('groups two workplaces and merges rows of the same massage type', () => {
+    const summary = summariseDay({
+      date: '01-05-2026',
+      incomes: [
+        {
+          amountPence: 1200,
+          basePence: 1000,
+          additionalFeePence: 200,
+          bonusPence: 0,
+          massageType: 'swedish',
+          customMassageType: null,
+          workplaceId: 1,
+        },
+        {
+          amountPence: 1500,
+          basePence: 1500,
+          additionalFeePence: 0,
+          bonusPence: 0,
+          massageType: 'swedish',
+          customMassageType: null,
+          workplaceId: 2,
+        },
+      ],
+      workplaces: [
+        { id: 2, name: 'City Clinic', kind: 'clinic' },
+        { id: 1, name: 'North Spa', kind: 'spa' },
+      ],
+    });
+
+    expect(summary.totalPence).toBe(2700);
+    expect(summary.byWorkplace.map((workplace) => workplace.name)).toEqual([
+      'City Clinic',
+      'North Spa',
+    ]);
+    expect(summary.byMassageType).toEqual([
+      {
+        massageType: 'swedish',
+        basePence: 2500,
+        additionalFeePence: 200,
+        bonusPence: 0,
+        totalPence: 2700,
+      },
+    ]);
+  });
 });
