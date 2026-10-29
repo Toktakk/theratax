@@ -102,7 +102,7 @@ export default function App() {
   }
 
   return (
-    <div className="page">
+    <div className="shell">
       <Shell user={session.user} onLogout={logout}>
         <Routes>
           <Route path="/" element={<FeedPage user={session.user} />} />
@@ -154,34 +154,49 @@ function Shell({
 }) {
   return (
     <>
-      <header className="top">
+      <div className="side">
         <div>
           <h1 className="brand">TheraTax</h1>
           <p className="who">{user.name}</p>
         </div>
-        <nav className="nav">
-          <NavLink to="/" end className={navClass}>
-            Feed
-          </NavLink>
-          <NavLink to="/workplaces" className={navClass}>
-            Workplaces
-          </NavLink>
-          <NavLink to="/invoices" className={navClass}>
-            Invoices
-          </NavLink>
-          <NavLink to="/tax" className={navClass}>
-            Tax summary
-          </NavLink>
+        <nav className="nav" aria-label="Primary">
+          <NavItem to="/" end label="Log" />
+          <NavItem to="/workplaces" label="Workplaces" short="Places" />
+          <NavItem to="/invoices" label="Invoices" />
+          <NavItem to="/tax" label="Tax summary" short="Tax" />
+        </nav>
+        <div className="account">
           <NavLink to="/profile" className={navClass}>
             Profile
           </NavLink>
-        </nav>
-        <button className="button-ghost" type="button" onClick={onLogout}>
-          Log out
-        </button>
-      </header>
-      <main>{children}</main>
+          <button className="button-ghost" type="button" onClick={onLogout}>
+            Log out
+          </button>
+        </div>
+      </div>
+      <main className="shell-main">{children}</main>
     </>
+  );
+}
+
+function NavItem({
+  to,
+  end,
+  label,
+  short,
+}: {
+  to: string;
+  end?: boolean;
+  label: string;
+  short?: string;
+}) {
+  return (
+    <NavLink to={to} end={end} className={navClass}>
+      <span className="nav-full">{label}</span>
+      <span className="nav-short" aria-hidden="true">
+        {short ?? label}
+      </span>
+    </NavLink>
   );
 }
 

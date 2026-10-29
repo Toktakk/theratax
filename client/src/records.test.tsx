@@ -107,7 +107,7 @@ describe('records', () => {
     );
     expect(await screen.findByText('Morning session')).toBeInTheDocument();
     await actor.selectOptions(screen.getByLabelText('Massage Type'), 'cash');
-    await actor.type(screen.getByLabelText('Pounds'), '10');
+    await actor.type(screen.getByLabelText('Amount'), '10');
     await actor.click(screen.getByRole('button', { name: 'Save' }));
     expect(request).toHaveBeenCalledWith('/transactions', {
       method: 'POST',

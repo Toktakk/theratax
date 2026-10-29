@@ -87,7 +87,7 @@ describe('session', () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByRole('heading', { name: 'Feed' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Log' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Workplaces' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Invoices' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Tax summary' })).toBeInTheDocument();

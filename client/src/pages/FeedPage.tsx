@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { messageOf, request } from '../api.ts';
 import { categoriesForMethod, categoryName } from '../category-filter.ts';
@@ -9,17 +9,17 @@ import {
   effectiveHourRatePence,
   expenseMethodLabel,
   formatHours,
+  formatMoneyInput,
   formatPounds,
   hoursLabel,
   isMassageType,
   MASSAGE_OPTIONS,
   massageTypeLabel,
   practiceTypeLabel,
-  readAmountPence,
   readHours,
-  readOptionalAmount,
+  readMoneyText,
+  readOptionalMoney,
   readWholeNumber,
-  splitAmount,
 } from '../format.ts';
 import { suggestCategory } from '../hint.ts';
 import type {
@@ -94,16 +94,13 @@ export function FeedPage({ user }: FeedPageProps) {
   const [pickedSlug, setPickedSlug] = useState('');
   const [pickedNote, setPickedNote] = useState<string | null>(null);
   const [miles, setMiles] = useState('');
-  const [pounds, setPounds] = useState('');
-  const [pence, setPence] = useState('');
+  const [amount, setAmount] = useState('');
   const [massageType, setMassageType] = useState<MassageType | '' | 'cash'>('');
   const [customMassageType, setCustomMassageType] = useState('');
   const [party, setParty] = useState('');
   const [hours, setHours] = useState('');
-  const [feePounds, setFeePounds] = useState('');
-  const [feePence, setFeePence] = useState('');
-  const [bonusPounds, setBonusPounds] = useState('');
-  const [bonusPence, setBonusPence] = useState('');
+  const [fee, setFee] = useState('');
+  const [bonus, setBonus] = useState('');
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [workplacesLoading, setWorkplacesLoading] = useState(true);
@@ -115,6 +112,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const [photos, setPhotos] = useState<Record<number, ShownReceipt>>({});
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
   const receiptRef = useRef<HTMLInputElement>(null);
 
@@ -124,7 +122,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const categorySlug = pickedNote === note ? pickedSlug : (suggestion?.slug ?? pickedSlug);
   const selected = allowed.find((category) => category.slug === categorySlug);
   const mileage = type === 'expense' && selected?.kind === 'mileage';
-  const massage = type === 'income' && massageType !== 'cash';
+  const massage = type === 'income' && isMassageType(massageType);
   const visibleItems = items.filter((item) => item.type === type);
   const receiptKey = items
     .filter((item) => item.hasReceipt)
@@ -285,8 +283,7 @@ export function FeedPage({ user }: FeedPageProps) {
   function clearEntry() {
     setNote('');
     setOccurredOn('');
-    setPounds('');
-    setPence('');
+    setAmount('');
     setMiles('');
     setPickedSlug('');
     setPickedNote(null);
@@ -294,10 +291,8 @@ export function FeedPage({ user }: FeedPageProps) {
     setCustomMassageType('');
     setParty('');
     setHours('');
-    setFeePounds('');
-    setFeePence('');
-    setBonusPounds('');
-    setBonusPence('');
+    setFee('');
+    setBonus('');
     if (receiptRef.current !== null) {
       receiptRef.current.value = '';
     }
@@ -329,7 +324,7 @@ export function FeedPage({ user }: FeedPageProps) {
           payload.miles = milesValue.value;
         }
       } else {
-        const money = readAmountPence(pounds, pence);
+        const money = readMoneyText(amount);
         if (!money.ok) {
           setFormError(money.message);
           return;
@@ -339,7 +334,7 @@ export function FeedPage({ user }: FeedPageProps) {
         }
       }
     } else if (massageType === 'cash') {
-      const money = readAmountPence(pounds, pence);
+      const money = readMoneyText(amount);
       if (!money.ok) {
         setFormError(money.message);
         return;
@@ -384,21 +379,21 @@ export function FeedPage({ user }: FeedPageProps) {
         return;
       }
       payload.minutes = parsedHours.minutes;
-      const fee = readOptionalAmount(feePounds, feePence);
-      if (!fee.ok) {
-        setFormError(fee.message);
+      const feeAmount = readOptionalMoney(fee);
+      if (!feeAmount.ok) {
+        setFormError(feeAmount.message);
         return;
       }
-      if (fee.amountPence !== undefined) {
-        payload.additionalFeePence = fee.amountPence;
+      if (feeAmount.amountPence !== undefined) {
+        payload.additionalFeePence = feeAmount.amountPence;
       }
-      const bonus = readOptionalAmount(bonusPounds, bonusPence);
-      if (!bonus.ok) {
-        setFormError(bonus.message);
+      const bonusAmount = readOptionalMoney(bonus);
+      if (!bonusAmount.ok) {
+        setFormError(bonusAmount.message);
         return;
       }
-      if (bonus.amountPence !== undefined) {
-        payload.bonusPence = bonus.amountPence;
+      if (bonusAmount.amountPence !== undefined) {
+        payload.bonusPence = bonusAmount.amountPence;
       }
     }
 
@@ -449,25 +444,32 @@ export function FeedPage({ user }: FeedPageProps) {
     customMassageType,
     parsedHours,
     rated,
-    feePounds,
-    feePence,
-    bonusPounds,
-    bonusPence,
+    fee,
+    bonus,
   );
   const hourHint = massage ? hourPreview(parsedHours, rated, massageType, customMassageType) : '';
 
   return (
     <div className="stack">
       <div>
-        <h2>Feed</h2>
+        <h2>Log</h2>
         <p className="muted">
           {practiceTypeLabel(user.practiceType)} · {expenseMethodLabel(user.expenseMethod)}
         </p>
       </div>
+      <section className="stack">
+        <h3>Daily summary{summary === null ? '' : ` · ${summary.date}`}</h3>
+        {summaryLoading ? <p className="muted">Loading summary…</p> : null}
+        {summaryError !== '' ? <FormError message={summaryError} /> : null}
+        {summary !== null && summaryError === '' ? (
+          <SummaryFigures summary={shownSummary(summary, draft)} />
+        ) : null}
+      </section>
+      <div className="feed-layout">
       <div className="card stack">
-        <form className="stack" autoComplete="off" onSubmit={onSubmit}>
-          <fieldset>
-            <legend>Type</legend>
+        <form ref={formRef} className="stack" autoComplete="off" onSubmit={onSubmit}>
+          <fieldset className="segment">
+            <legend className="sr-only">Type</legend>
             <div className="inline-choices">
               <label className="choice">
                 <input
@@ -549,7 +551,7 @@ export function FeedPage({ user }: FeedPageProps) {
             </label>
           )}
           {massage ? (
-            <>
+            <div className="subcard">
               <label className="field">
                 Workplace or client
                 <select
@@ -601,23 +603,19 @@ export function FeedPage({ user }: FeedPageProps) {
                 />
                 <span className="muted">{hourHint}</span>
               </label>
-              <MoneyPair
-                legend="Additional Massage Fee"
-                pounds={feePounds}
-                pence={feePence}
-                onPounds={setFeePounds}
-                onPence={setFeePence}
+              <MoneyField
+                label="Additional Massage Fee"
+                value={fee}
+                onChange={setFee}
                 hint="Leave empty when nothing was received."
               />
-              <MoneyPair
-                legend="Bonus"
-                pounds={bonusPounds}
-                pence={bonusPence}
-                onPounds={setBonusPounds}
-                onPence={setBonusPence}
+              <MoneyField
+                label="Bonus"
+                value={bonus}
+                onChange={setBonus}
                 hint="Leave empty when nothing was received."
               />
-            </>
+            </div>
           ) : null}
           {type === 'expense' && mileage ? (
             <label className="field">
@@ -633,22 +631,10 @@ export function FeedPage({ user }: FeedPageProps) {
             </label>
           ) : null}
           {type === 'expense' && !mileage ? (
-            <MoneyPair
-              legend="Amount"
-              pounds={pounds}
-              pence={pence}
-              onPounds={setPounds}
-              onPence={setPence}
-            />
+            <MoneyField label="Amount" value={amount} onChange={setAmount} />
           ) : null}
-          {type === 'income' && !massage ? (
-            <MoneyPair
-              legend="Amount"
-              pounds={pounds}
-              pence={pence}
-              onPounds={setPounds}
-              onPence={setPence}
-            />
+          {massageType === 'cash' ? (
+            <MoneyField label="Amount" value={amount} onChange={setAmount} />
           ) : null}
           <label className="field">
             Note
@@ -689,25 +675,32 @@ export function FeedPage({ user }: FeedPageProps) {
           </button>
         </form>
       </div>
-      <section className="card stack">
-        <h3>Daily summary{summary === null ? '' : ` · ${summary.date}`}</h3>
-        {summaryLoading ? <p className="muted">Loading summary…</p> : null}
-        {summaryError !== '' ? <FormError message={summaryError} /> : null}
-        {summary !== null && summaryError === '' ? (
-          <SummaryFigures summary={shownSummary(summary, draft)} />
+      <section className="stack">
+        <h3>Entries</h3>
+        <FormError message={listError} />
+        {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}
+        {!listLoading && listError === '' && visibleItems.length === 0 ? (
+          <div className="empty card">
+            <p>Nothing logged yet.</p>
+            <p className="muted">Record a session or an expense to start the feed.</p>
+            <button
+              className="button-primary"
+              type="button"
+              onClick={() => {
+                formRef.current?.scrollIntoView({ block: 'start' });
+                noteRef.current?.focus();
+              }}
+            >
+              Log an entry
+            </button>
+          </div>
         ) : null}
-      </section>
-      <FormError message={listError} />
-      {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}
-      {!listLoading && listError === '' && visibleItems.length === 0 ? (
-        <p className="muted">Nothing logged yet.</p>
-      ) : null}
-      {total > items.length ? (
-        <p className="muted">
-          Showing the latest {items.length} of {total}.
-        </p>
-      ) : null}
-      <div className="list">
+        {total > items.length ? (
+          <p className="muted">
+            Showing the latest {items.length} of {total}.
+          </p>
+        ) : null}
+        <div className="list">
         {visibleItems.map((item) =>
           editingId === item.id && item.type === 'income' ? (
             <IncomeEditForm
@@ -745,78 +738,67 @@ export function FeedPage({ user }: FeedPageProps) {
             />
           ),
         )}
+        </div>
+      </section>
       </div>
     </div>
   );
 }
 
-function MoneyPair({
-  legend,
-  pounds,
-  pence,
-  onPounds,
-  onPence,
+function MoneyField({
+  label,
+  value,
+  onChange,
   hint,
 }: {
-  legend: string;
-  pounds: string;
-  pence: string;
-  onPounds: (value: string) => void;
-  onPence: (value: string) => void;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
   hint?: string;
 }) {
+  const id = useId();
   return (
-    <fieldset>
-      <legend>{legend}</legend>
-      <div className="money-fields">
-        <label className="field">
-          Pounds
-          <input
-            inputMode="numeric"
-            value={pounds}
-            onChange={(event) => {
-              onPounds(event.target.value);
-            }}
-          />
-        </label>
-        <label className="field">
-          Pence
-          <input
-            inputMode="numeric"
-            maxLength={2}
-            value={pence}
-            onChange={(event) => {
-              onPence(event.target.value);
-            }}
-          />
-        </label>
-      </div>
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <span className="money-input">
+        <span className="money-prefix" aria-hidden="true">
+          £
+        </span>
+        <input
+          id={id}
+          inputMode="decimal"
+          value={value}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+        />
+      </span>
       {hint === undefined ? null : <span className="muted">{hint}</span>}
-    </fieldset>
+    </div>
   );
 }
 
 function SummaryFigures({ summary }: { summary: DailyIncomeSummary }) {
   return (
     <>
-      <dl className="figures">
-        <div>
-          <dt>Base</dt>
-          <dd>{formatPounds(summary.basePence)}</dd>
+      <div className="card">
+        <p className="muted">Daily total</p>
+        <p className="hero-amount">{formatPounds(summary.totalPence)}</p>
+      </div>
+      <div className="stat-strip">
+        <div className="stat">
+          <span className="muted">Base</span>
+          <strong>{formatPounds(summary.basePence)}</strong>
         </div>
-        <div>
-          <dt>Additional fees</dt>
-          <dd>{formatPounds(summary.additionalFeePence)}</dd>
+        <div className="stat">
+          <span className="muted">Additional fees</span>
+          <strong>{formatPounds(summary.additionalFeePence)}</strong>
         </div>
-        <div>
-          <dt>Bonus</dt>
-          <dd>{formatPounds(summary.bonusPence)}</dd>
+        <div className="stat">
+          <span className="muted">Bonus</span>
+          <strong>{formatPounds(summary.bonusPence)}</strong>
         </div>
-        <div>
-          <dt>Daily total</dt>
-          <dd>{formatPounds(summary.totalPence)}</dd>
-        </div>
-      </dl>
+      </div>
       <p className="muted">
         These amounts stay on the feed. They are not included in the tax summary until the invoice is paid.
       </p>
@@ -825,7 +807,13 @@ function SummaryFigures({ summary }: { summary: DailyIncomeSummary }) {
           <h3>By workplace</h3>
           <ul className="parts">
             {summary.byWorkplace.map((row) => (
-              <li key={row.workplaceId}>{workplaceLine(row)}</li>
+              <li className="directory-row" key={row.workplaceId}>
+                <span>
+                  {row.name}
+                  <span className="muted"> · {workplaceLine(row)}</span>
+                </span>
+                <span className="amount">{formatPounds(row.totalPence)}</span>
+              </li>
             ))}
           </ul>
         </div>
@@ -835,7 +823,16 @@ function SummaryFigures({ summary }: { summary: DailyIncomeSummary }) {
           <h3>By massage type</h3>
           <ul className="parts">
             {summary.byMassageType.map((row) => (
-              <li key={`${row.massageType}:${row.customMassageType ?? ''}`}>{massageLine(row)}</li>
+              <li
+                className="directory-row"
+                key={`${row.massageType}:${row.customMassageType ?? ''}`}
+              >
+                <span>
+                  {massageTypeLabel(row.massageType, row.customMassageType)}
+                  <span className="muted"> · {massageLine(row)}</span>
+                </span>
+                <span className="amount">{formatPounds(row.totalPence)}</span>
+              </li>
             ))}
           </ul>
         </div>
@@ -846,12 +843,11 @@ function SummaryFigures({ summary }: { summary: DailyIncomeSummary }) {
 
 function workplaceLine(row: WorkplaceDay): string {
   const kind = row.kind === 'spa' ? 'Spa' : 'Clinic';
-  return `${row.name} · ${kind} · base ${formatPounds(row.basePence)} · additional fees ${formatPounds(row.additionalFeePence)} · bonus ${formatPounds(row.bonusPence)} · ${formatPounds(row.totalPence)}`;
+  return `${kind} · base ${formatPounds(row.basePence)} · additional fees ${formatPounds(row.additionalFeePence)} · bonus ${formatPounds(row.bonusPence)}`;
 }
 
 function massageLine(row: MassageTypeDay): string {
-  const name = massageTypeLabel(row.massageType, row.customMassageType);
-  return `${name} · base ${formatPounds(row.basePence)} · additional fees ${formatPounds(row.additionalFeePence)} · bonus ${formatPounds(row.bonusPence)} · ${formatPounds(row.totalPence)}`;
+  return `base ${formatPounds(row.basePence)} · additional fees ${formatPounds(row.additionalFeePence)} · bonus ${formatPounds(row.bonusPence)}`;
 }
 
 function TransactionRow({
@@ -873,53 +869,52 @@ function TransactionRow({
 }) {
   const label = item.categorySlug === undefined ? null : categoryName(categories, item.categorySlug);
   const named = partyName(item, workplaces, clients);
+  const detail = entryDetail(item);
   return (
-    <article className={item.type === 'income' ? 'row income' : 'row expense'}>
-      <p className="muted">
-        {item.occurredOn} · {item.type === 'income' ? 'Income' : 'Expense'}
-        {label === null ? '' : ` · ${label}`}
-      </p>
-      {item.note !== undefined ? <p className="note">{item.note}</p> : null}
-      {named === null ? null : <p>{named}</p>}
-      {item.massageType === undefined ? null : (
-        <div className="parts">
-          <p>{massageTypeLabel(item.massageType, item.customMassageType)}</p>
-          <p>
-            {item.minutes === undefined ? 'Base' : hoursLabel(item.minutes)} · base{' '}
-            {formatPounds(item.basePence ?? 0)}
-          </p>
-          <p>Additional Massage Fee {formatPounds(item.additionalFeePence ?? 0)}</p>
-          <p>Bonus {formatPounds(item.bonusPence ?? 0)}</p>
-        </div>
-      )}
-      {item.miles !== undefined ? (
-        <p className="amount">
-          {item.miles} miles · {formatPounds(item.amountPence)}
+    <article className={item.type === 'income' ? 'entry income' : 'entry expense'}>
+      <div className="entry-main">
+        <p className="muted">
+          {item.occurredOn} · {item.type === 'income' ? 'Income' : 'Expense'}
+          {label === null ? '' : ` · ${label}`}
         </p>
-      ) : (
-        <p className="amount">{formatPounds(item.amountPence)}</p>
-      )}
-      {item.hasReceipt ? (
-        photo === undefined ? (
-          <p className="muted">Loading photo…</p>
-        ) : photo.contentType === 'application/pdf' ? (
-          <a href={photo.url} target="_blank" rel="noreferrer">
-            View PDF
-          </a>
-        ) : (
-          <img className="receipt" src={photo.url} alt="Receipt" />
-        )
-      ) : null}
-      <FormError message={error} />
-      {onEdit === undefined ? null : (
-        <div className="actions">
-          <button className="button-ghost" type="button" onClick={onEdit}>
-            Edit
-          </button>
-        </div>
-      )}
+        {item.note !== undefined ? <p className="note">{item.note}</p> : null}
+        {named === null ? null : <p>{named}</p>}
+        {detail === null ? null : <p className="muted">{detail}</p>}
+        {item.hasReceipt ? (
+          photo === undefined ? (
+            <p className="muted">Loading photo…</p>
+          ) : photo.contentType === 'application/pdf' ? (
+            <a href={photo.url} target="_blank" rel="noreferrer">
+              View PDF
+            </a>
+          ) : (
+            <img className="receipt" src={photo.url} alt="Receipt" />
+          )
+        ) : null}
+        <FormError message={error} />
+        {onEdit === undefined ? null : (
+          <div className="actions">
+            <button className="button-ghost" type="button" onClick={onEdit}>
+              Edit
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="amount">{formatPounds(item.amountPence)}</p>
     </article>
   );
+}
+
+function entryDetail(item: Transaction): string | null {
+  if (item.massageType !== undefined) {
+    const name = massageTypeLabel(item.massageType, item.customMassageType);
+    const hours = item.minutes === undefined ? 'Base' : hoursLabel(item.minutes);
+    return `${name} · ${hours} · fee ${formatPounds(item.additionalFeePence ?? 0)} · bonus ${formatPounds(item.bonusPence ?? 0)}`;
+  }
+  if (item.miles !== undefined) {
+    return `${item.miles} miles`;
+  }
+  return null;
 }
 
 function IncomeEditForm({
@@ -942,21 +937,15 @@ function IncomeEditForm({
   onSaved: () => void;
 }) {
   const massage = item.massageType !== undefined;
-  const initialFee = splitAmount(item.additionalFeePence ?? 0);
-  const initialBonus = splitAmount(item.bonusPence ?? 0);
-  const initialAmount = splitAmount(item.amountPence);
   const [occurredOn, setOccurredOn] = useState(inputDateFromCivil(item.occurredOn));
   const [note, setNote] = useState(item.note ?? '');
   const [massageType, setMassageType] = useState<MassageType | ''>(item.massageType ?? '');
   const [customMassageType, setCustomMassageType] = useState(item.customMassageType ?? '');
   const [party, setParty] = useState(partyValue(item));
   const [hours, setHours] = useState(item.minutes === undefined ? '' : formatHours(item.minutes));
-  const [feePounds, setFeePounds] = useState(initialFee.pounds);
-  const [feePence, setFeePence] = useState(initialFee.pence);
-  const [bonusPounds, setBonusPounds] = useState(initialBonus.pounds);
-  const [bonusPence, setBonusPence] = useState(initialBonus.pence);
-  const [pounds, setPounds] = useState(initialAmount.pounds);
-  const [pence, setPence] = useState(initialAmount.pence);
+  const [fee, setFee] = useState(optionalMoneyInput(item.additionalFeePence));
+  const [bonus, setBonus] = useState(optionalMoneyInput(item.bonusPence));
+  const [amount, setAmount] = useState(formatMoneyInput(item.amountPence));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const parsedHours = readHours(hours);
@@ -976,7 +965,7 @@ function IncomeEditForm({
       note: trimmedNote === '' ? null : trimmedNote,
     };
     if (!massage) {
-      const money = readAmountPence(pounds, pence);
+      const money = readMoneyText(amount);
       if (!money.ok) {
         setError(money.message);
         return;
@@ -1025,18 +1014,18 @@ function IncomeEditForm({
         return;
       }
       payload.minutes = parsedHours.minutes;
-      const fee = readOptionalAmount(feePounds, feePence);
-      if (!fee.ok) {
-        setError(fee.message);
+      const feeAmount = readOptionalMoney(fee);
+      if (!feeAmount.ok) {
+        setError(feeAmount.message);
         return;
       }
-      payload.additionalFeePence = fee.amountPence ?? 0;
-      const bonus = readOptionalAmount(bonusPounds, bonusPence);
-      if (!bonus.ok) {
-        setError(bonus.message);
+      payload.additionalFeePence = feeAmount.amountPence ?? 0;
+      const bonusAmount = readOptionalMoney(bonus);
+      if (!bonusAmount.ok) {
+        setError(bonusAmount.message);
         return;
       }
-      payload.bonusPence = bonus.amountPence ?? 0;
+      payload.bonusPence = bonusAmount.amountPence ?? 0;
     }
     setSaving(true);
     try {
@@ -1140,31 +1129,21 @@ function IncomeEditForm({
               />
               <span className="muted">{hourHint}</span>
             </label>
-            <MoneyPair
-              legend="Additional Massage Fee"
-              pounds={feePounds}
-              pence={feePence}
-              onPounds={setFeePounds}
-              onPence={setFeePence}
+            <MoneyField
+              label="Additional Massage Fee"
+              value={fee}
+              onChange={setFee}
               hint="Leave empty when nothing was received."
             />
-            <MoneyPair
-              legend="Bonus"
-              pounds={bonusPounds}
-              pence={bonusPence}
-              onPounds={setBonusPounds}
-              onPence={setBonusPence}
+            <MoneyField
+              label="Bonus"
+              value={bonus}
+              onChange={setBonus}
               hint="Leave empty when nothing was received."
             />
           </>
         ) : (
-          <MoneyPair
-            legend="Amount"
-            pounds={pounds}
-            pence={pence}
-            onPounds={setPounds}
-            onPence={setPence}
-          />
+          <MoneyField label="Amount" value={amount} onChange={setAmount} />
         )}
         <label className="field">
           Note
@@ -1298,10 +1277,8 @@ function massageDraft(
   customMassageType: string,
   parsedHours: { ok: true; minutes: number | undefined } | { ok: false; message: string },
   rated: { hourRatePence: number; hourExtras: Workplace['hourExtras'] } | null,
-  feePounds: string,
-  feePence: string,
-  bonusPounds: string,
-  bonusPence: string,
+  feeText: string,
+  bonusText: string,
 ): { basePence: number; additionalFeePence: number; bonusPence: number } | null {
   if (!massage || !parsedHours.ok || parsedHours.minutes === undefined || parsedHours.minutes < 1) {
     return null;
@@ -1309,16 +1286,23 @@ function massageDraft(
   if (rated === null || rated.hourRatePence < 1) {
     return null;
   }
-  const fee = readOptionalAmount(feePounds, feePence);
-  const bonus = readOptionalAmount(bonusPounds, bonusPence);
+  const feeAmount = readOptionalMoney(feeText);
+  const bonusAmount = readOptionalMoney(bonusText);
   return {
     basePence: basePenceFromMinutes(
       parsedHours.minutes,
       effectiveHourRatePence(rated.hourRatePence, rated.hourExtras, massageType, customMassageType),
     ),
-    additionalFeePence: fee.ok ? (fee.amountPence ?? 0) : 0,
-    bonusPence: bonus.ok ? (bonus.amountPence ?? 0) : 0,
+    additionalFeePence: feeAmount.ok ? (feeAmount.amountPence ?? 0) : 0,
+    bonusPence: bonusAmount.ok ? (bonusAmount.amountPence ?? 0) : 0,
   };
+}
+
+function optionalMoneyInput(amountPence: number | undefined): string {
+  if (amountPence === undefined || amountPence === 0) {
+    return '';
+  }
+  return formatMoneyInput(amountPence);
 }
 
 function shownSummary(

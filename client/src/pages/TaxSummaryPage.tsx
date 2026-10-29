@@ -47,35 +47,34 @@ export function TaxSummaryPage() {
   return (
     <div className="stack">
       <h2>Tax summary</h2>
-      <dl className="figures card">
-        <div>
-          <dt>Period</dt>
-          <dd>
-            {summary.periodStart} to {summary.periodEnd}
-          </dd>
+      <section className="card">
+        <p className="muted">Estimated tax</p>
+        <p className="hero-amount">{formatPounds(summary.estimatedTaxOwedPence)}</p>
+        <p className="muted">
+          {summary.periodStart} to {summary.periodEnd}
+        </p>
+      </section>
+      <div className="stat-strip">
+        <div className="stat">
+          <span className="muted">Income</span>
+          <strong className="income-value">{formatPounds(summary.incomePence)}</strong>
         </div>
+        <div className="stat">
+          <span className="muted">Allowable expenses</span>
+          <strong className="expense-value">{formatPounds(summary.allowableExpensesPence)}</strong>
+        </div>
+        <div className="stat">
+          <span className="muted">Net profit</span>
+          <strong>
+            {formatPounds(summary.netProfitPence)}
+            {summary.netProfitPence < 0 ? ' (loss)' : ''}
+          </strong>
+        </div>
+      </div>
+      <dl className="figures card figures-quiet">
         <div>
           <dt>Vehicle method</dt>
           <dd>{expenseMethodLabel(summary.expenseMethod)}</dd>
-        </div>
-        <div>
-          <dt>Income</dt>
-          <dd>{formatPounds(summary.incomePence)}</dd>
-        </div>
-        <div>
-          <dt>Allowable expenses</dt>
-          <dd>{formatPounds(summary.allowableExpensesPence)}</dd>
-        </div>
-        <div>
-          <dt>Net profit</dt>
-          <dd>
-            {formatPounds(summary.netProfitPence)}
-            {summary.netProfitPence < 0 ? ' (loss)' : ''}
-          </dd>
-        </div>
-        <div>
-          <dt>Estimated tax</dt>
-          <dd>{formatPounds(summary.estimatedTaxOwedPence)}</dd>
         </div>
       </dl>
       <p>

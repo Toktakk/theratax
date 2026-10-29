@@ -63,6 +63,56 @@ export function readOptionalAmount(
   return money;
 }
 
+const MONEY_MESSAGE = 'Enter an amount in pounds, with up to two decimal places.';
+
+export function readMoneyText(
+  text: string,
+): { ok: true; amountPence: number } | { ok: false; message: string } {
+  const trimmed = text.trim().replace(/^£/, '');
+  if (trimmed === '') {
+    return { ok: true, amountPence: 0 };
+  }
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(trimmed);
+  if (match === null) {
+    return { ok: false, message: MONEY_MESSAGE };
+  }
+  const poundsText = match[1];
+  const fraction = match[2];
+  if (poundsText === undefined) {
+    return { ok: false, message: MONEY_MESSAGE };
+  }
+  const pounds = Number(poundsText);
+  const pence =
+    fraction === undefined ? 0 : fraction.length === 1 ? Number(fraction) * 10 : Number(fraction);
+  if (!Number.isSafeInteger(pounds) || !Number.isSafeInteger(pence)) {
+    return { ok: false, message: MONEY_MESSAGE };
+  }
+  const amountPence = pounds * 100 + pence;
+  if (!Number.isSafeInteger(amountPence)) {
+    return { ok: false, message: MONEY_MESSAGE };
+  }
+  return { ok: true, amountPence };
+}
+
+export function readOptionalMoney(
+  text: string,
+): { ok: true; amountPence: number | undefined } | { ok: false; message: string } {
+  if (text.trim() === '') {
+    return { ok: true, amountPence: undefined };
+  }
+  const money = readMoneyText(text);
+  if (!money.ok || money.amountPence === 0) {
+    return money.ok ? { ok: true, amountPence: undefined } : money;
+  }
+  return money;
+}
+
+export function formatMoneyInput(amountPence: number): string {
+  const pounds = Math.trunc(amountPence / 100);
+  const pence = amountPence % 100;
+  return `${pounds.toString()}.${pence.toString().padStart(2, '0')}`;
+}
+
 export function isMassageType(value: string): value is MassageType {
   return MASSAGE_OPTIONS.some((option) => option.value === value);
 }

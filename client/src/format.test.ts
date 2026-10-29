@@ -4,10 +4,13 @@ import {
   civilDateFromInput,
   effectiveHourRatePence,
   formatHours,
+  formatMoneyInput,
   formatPounds,
   hoursLabel,
   massageTypeLabel,
   readAmountPence,
+  readMoneyText,
+  readOptionalMoney,
 } from './format.ts';
 
 describe('format', () => {
@@ -15,6 +18,17 @@ describe('format', () => {
     expect(formatPounds(6700)).toBe('£67.00');
     expect(formatPounds(1)).toBe('£0.01');
     expect(formatPounds(-50)).toBe('-£0.50');
+  });
+
+  it('reads a single pounds amount, including an optional pound sign', () => {
+    expect(readMoneyText('10')).toEqual({ ok: true, amountPence: 1000 });
+    expect(readMoneyText('10.5')).toEqual({ ok: true, amountPence: 1050 });
+    expect(readMoneyText('£0.01')).toEqual({ ok: true, amountPence: 1 });
+    expect(readMoneyText('')).toEqual({ ok: true, amountPence: 0 });
+    expect(readMoneyText('1.234').ok).toBe(false);
+    expect(readOptionalMoney('')).toEqual({ ok: true, amountPence: undefined });
+    expect(readOptionalMoney('0')).toEqual({ ok: true, amountPence: undefined });
+    expect(formatMoneyInput(1050)).toBe('10.50');
   });
 
   it('reads pounds and pence and rejects pence above 99', () => {
