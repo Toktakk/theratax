@@ -77,7 +77,6 @@ model User {
   transactions  Transaction[]
   invoices      Invoice[]
   workplaces    Workplace[]
-  bonuses       HourlyBonus[]
   clients       Client[]
 }
 
@@ -184,7 +183,6 @@ model Workplace {
   userId        Int
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
-  bonuses       HourlyBonus[]
   invoices      Invoice[]
   hourExtras    HourExtra[]
 
@@ -204,25 +202,6 @@ model HourExtra {
 
   @@index([workplaceId])
   @@index([clientId])
-}
-
-model HourlyBonus {
-  id               Int       @id @default(autoincrement())
-  occurredOn       DateTime  @db.Date
-  eligibleMinutes  Int
-  ratePencePerHour Int
-  totalPence       Int
-  note             String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  userId           Int
-  workplaceId      Int
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workplace        Workplace     @relation(fields: [workplaceId], references: [id], onDelete: Cascade)
-  invoiceLines     InvoiceLine[]
-
-  @@unique([userId, workplaceId, occurredOn])
-  @@index([userId, occurredOn])
 }
 
 enum InvoiceRecipientKind {
@@ -278,11 +257,9 @@ model InvoiceLine {
   amountPence         Int
   occurredOn          DateTime        @db.Date
   sourceTransactionId Int?
-  sourceBonusId       Int?
   invoiceId           Int
   invoice             Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   sourceTransaction   Transaction?    @relation(fields: [sourceTransactionId], references: [id], onDelete: SetNull)
-  sourceBonus         HourlyBonus?    @relation(fields: [sourceBonusId], references: [id], onDelete: SetNull)
 
   @@unique([sourceTransactionId, kind])
 }

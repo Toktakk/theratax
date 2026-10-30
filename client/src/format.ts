@@ -1,4 +1,4 @@
-import type { ExpenseMethod, HourExtra, HourExtraType, MassageType, PracticeType } from './types.ts';
+import type { ExpenseMethod, HourExtraType, MassageType, PracticeType } from './types.ts';
 
 export const MASSAGE_OPTIONS: readonly { value: MassageType; label: string }[] = [
   { value: 'deep_tissue', label: 'Deep Tissue' },
@@ -154,18 +154,6 @@ export function compareHourExtras(
 function extraOrder(massageType: string): number {
   const index = HOUR_EXTRA_OPTIONS.findIndex((option) => option.value === massageType);
   return index === -1 ? HOUR_EXTRA_OPTIONS.length : index;
-}
-
-export function formatRateText(hourRatePence: number, hourExtras: readonly HourExtra[]): string {
-  const rate = `${formatPounds(hourRatePence)}/hour`;
-  const extras = [...hourExtras].sort(compareHourExtras);
-  if (extras.length === 0) {
-    return rate;
-  }
-  const parts = extras.map(
-    (extra) => `${hourExtraLabel(extra)} +${formatPounds(extra.extraPence)}/hour`,
-  );
-  return `${rate} · ${parts.join(' · ')}`;
 }
 
 export function splitAmount(amountPence: number): { pounds: string; pence: string } {

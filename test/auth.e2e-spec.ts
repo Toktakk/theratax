@@ -71,4 +71,27 @@ describe('auth (e2e)', () => {
     expect(second.body.addressLine1).toBe('5 Spa Lane');
     expect(second.body.postcode).toBe('LS1 4AP');
   });
+
+  it('treats email case as the same account and revokes the session on logout', async () => {
+    const server = app.getHttpServer();
+    const registered = await request(server)
+      .post('/auth/register')
+      .send({ email: 'Ada@Example.com', password: 'password1', name: 'Ada' })
+      .expect(201);
+    expect(registered.body.user.email).toBe('ada@example.com');
+
+    await request(server)
+      .post('/auth/register')
+      .send({ email: 'ada@example.com', password: 'password1', name: 'Ada' })
+      .expect(409);
+
+    const loggedIn = await request(server)
+      .post('/auth/login')
+      .send({ email: ' ADA@example.com ', password: 'password1' })
+      .expect(200);
+    const token = readAccessToken(loggedIn.body);
+
+    await request(server).delete('/auth/session').set(bearer(token)).expect(204);
+    await request(server).get('/users/me').set(bearer(token)).expect(401);
+  });
 });

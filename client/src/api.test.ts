@@ -19,6 +19,15 @@ describe('request', () => {
     });
   });
 
+  it('accepts an empty success response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
+    );
+
+    await expect(request('/auth/session', { method: 'DELETE', auth: false })).resolves.toBeUndefined();
+  });
+
   it('joins an array of validation messages', async () => {
     vi.stubGlobal(
       'fetch',

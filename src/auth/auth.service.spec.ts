@@ -92,11 +92,35 @@ describe('AuthService', () => {
     expect(result.accessToken.length).toBeGreaterThan(0);
     expect(result.user).not.toHaveProperty('passwordHash');
     expect(result.user.email).toBe('ada@example.com');
+    expect(db.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ email: 'ada@example.com' }),
+    });
     expect(db.session.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         token: result.accessToken,
         userId: 4,
       }),
+    });
+  });
+
+  it('stores and matches an email in lower case', async () => {
+    const { prisma, db } = prismaDouble();
+    db.user.findUnique.mockResolvedValue(null);
+    db.user.create.mockResolvedValue(
+      account({ email: 'ada@example.com', passwordHash: 'hashed-password' }),
+    );
+    db.session.create.mockResolvedValue({});
+    const service = new AuthService(prisma);
+
+    await service.register({
+      email: ' Ada@Example.com ',
+      name: 'Ada',
+      password: 'secret-pass',
+    });
+
+    expect(db.user.findUnique).toHaveBeenCalledWith({ where: { email: 'ada@example.com' } });
+    expect(db.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ email: 'ada@example.com' }),
     });
   });
 
@@ -125,6 +149,16 @@ describe('AuthService', () => {
     const result = await service.login({ email: 'ada@example.com', password: 'secret' });
     expect(result.user).not.toHaveProperty('passwordHash');
     expect(result.accessToken.length).toBeGreaterThan(0);
+  });
+
+  it('deletes the presented session', async () => {
+    const { prisma, db } = prismaDouble();
+    db.session.deleteMany.mockResolvedValue({ count: 1 });
+    const service = new AuthService(prisma);
+
+    await service.revokeSession('token-1');
+
+    expect(db.session.deleteMany).toHaveBeenCalledWith({ where: { token: 'token-1' } });
   });
 
   it('loads the public user for a live token', async () => {

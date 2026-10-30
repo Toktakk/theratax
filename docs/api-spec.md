@@ -2,9 +2,9 @@
 
 This document is the contract, derived from the therapist user flow ([docs/01_user_flow.md](01_user_flow.md)) and from the capstone data model: **User** (account, auth, onboarding profile), **Transaction** (one income or expense, optionally linked to a receipt or an invoice), **ExpenseCategory** (seeded, profession-specific), and **Invoice** (number, recipient, amount, status, generated PDF).
 
-The running source implements auth, onboarding, categories, transactions, receipts, invoices, the tax summary, workplaces, massage income, a separate hourly-bonus module, the daily income summary, saved clients, and invoices built from records. The React pages in [step 12](14_step12_react_pages.md) are the baseline screens. Current screen requirements are in [Page plans](20_plan_pages.md).
+The running source implements auth, onboarding, categories, transactions, receipts, invoices, the tax summary, workplaces, massage income, the daily income summary, saved clients, and invoices built from records. The React pages in [step 12](14_step12_react_pages.md) are the baseline screens. Current screen requirements are in [Page plans](20_plan_pages.md).
 
-This file is the required contract. Where the running source still uses `HourlyBonus`, `/hourly-bonuses`, or `hourlyBonusPence`, that code does not match this contract. Bonus is `bonusPence` on the massage transaction. Do not extend the hourly-bonus module. `body_scrub` and `request` are massage types.
+This file is the required contract. Bonus is `bonusPence` on the massage transaction. There is no `HourlyBonus` table and no `/hourly-bonuses` route. `body_scrub` and `request` are massage types.
 
 Every clause below cites the flow step or the entity that requires it. Backend modules follow the same ownership: auth, transactions, tax-engine, expense-categories, upload, invoices, and, from the later steps, workplaces, income-summary, and clients. Bonus stays on the transaction.
 
@@ -14,8 +14,10 @@ Phase 2 from the proposal is out of scope and is listed at the end. It is not qu
 
 | Method | Path | Query / Body | Auth |
 | --- | --- | --- | --- |
+| GET | `/` | — | no |
 | POST | `/auth/register` | `{ email, password, name }` | no |
 | POST | `/auth/login` | `{ email, password }` | no |
+| DELETE | `/auth/session` | — | yes |
 | GET | `/users/me` | — | yes |
 | PATCH | `/users/me/onboarding` | `{ practiceType, expenseMethod }` | yes |
 | PATCH | `/users/me/address` | business address | yes |
@@ -47,7 +49,9 @@ Phase 2 from the proposal is out of scope and is listed at the end. It is not qu
 
 `GET /invoices/preview` is registered before `GET /invoices/:id` so the path `preview` is not parsed as an id.
 
-The running source already has workplaces, clients, the daily summary, preview, and the recipient-and-period invoice body. It also still has `/hourly-bonuses`. That route is not this contract. The React invoice page still sends the old one-line body until [the invoice page plan](25_page_invoice.md) is built, and that old body gets `400`.
+The running source already has workplaces, clients, the daily summary, preview, and the recipient-and-period invoice body. The React invoice page still sends the old one-line body until [the invoice page plan](25_page_invoice.md) is built, and that old body gets `400`.
+
+`GET /` returns `200` and `{ "name": "TheraTax" }`. It does not require a token. It is the process check.
 
 Authenticated routes require `Authorization: Bearer <accessToken>`. A missing or invalid token is `401`.
 
@@ -89,7 +93,9 @@ interface User {
 
 `onboardedAt` is always on the object, including when it is `null`. The app reads `GET /users/me` on launch and gates the feed on that field (flow step 1 is one-time; steps 2–3 are the app after that). Omitting the key would make the gate ambiguous.
 
-Password is 8–72 characters. The upper bound is the bcrypt input limit, so the DTO rejects a longer password instead of silently truncating it. Email is a valid email address. `name` is 1–200 characters. The response never includes the password.
+Password is 8–72 characters. The upper bound is the bcrypt input limit, so the DTO rejects a longer password instead of silently truncating it. Email is a valid email address. Leading and trailing spaces are removed and the address is stored in lower case, so `Ada@Example.com` and `ada@example.com` are the same account. `name` is 1–200 characters. The response never includes the password.
+
+`DELETE /auth/session` returns `204` and deletes the bearer session. A later request with that token is `401`.
 
 A duplicate email on register is `409`:
 

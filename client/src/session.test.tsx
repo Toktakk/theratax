@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App.tsx';
-import { getToken, request, signIn } from './api.ts';
+import { clearToken, getToken, request, signIn } from './api.ts';
 import { OnboardingPage } from './pages/OnboardingPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
@@ -92,6 +92,40 @@ describe('session', () => {
     expect(screen.getByRole('link', { name: 'Invoices' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Tax summary' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument();
+  });
+
+  it('revokes the session when logging out', async () => {
+    const actor = userEvent.setup();
+    vi.mocked(getToken).mockReturnValue('token');
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path === '/users/me') {
+        return ready;
+      }
+      if (path === '/expense-categories') {
+        return [];
+      }
+      if (path.startsWith('/income/summary')) {
+        return {
+          date: '27-10-2026',
+          basePence: 0,
+          additionalFeePence: 0,
+          bonusPence: 0,
+          totalPence: 0,
+          byWorkplace: [],
+          byMassageType: [],
+        };
+      }
+      return { items: [], total: 0, skip: 0, limit: 100 };
+    });
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    await actor.click(await screen.findByRole('button', { name: 'Log out' }));
+    expect(request).toHaveBeenCalledWith('/auth/session', { method: 'DELETE' });
+    expect(clearToken).toHaveBeenCalled();
+    expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument();
   });
 
   it('submits the sign-in form', async () => {

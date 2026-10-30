@@ -81,7 +81,6 @@ function issuedInvoice(status: 'issued' | 'paid' = 'issued') {
         amountPence: 6000,
         occurredOn: day,
         sourceTransactionId: 11,
-        sourceBonusId: null,
       },
       {
         id: 2,
@@ -93,7 +92,6 @@ function issuedInvoice(status: 'issued' | 'paid' = 'issued') {
         amountPence: 200,
         occurredOn: day,
         sourceTransactionId: 11,
-        sourceBonusId: null,
       },
       {
         id: 3,
@@ -105,7 +103,6 @@ function issuedInvoice(status: 'issued' | 'paid' = 'issued') {
         amountPence: 500,
         occurredOn: day,
         sourceTransactionId: 11,
-        sourceBonusId: null,
       },
     ],
   };

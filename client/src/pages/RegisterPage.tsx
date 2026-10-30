@@ -39,9 +39,9 @@ export function RegisterPage({ onSignedIn }: RegisterPageProps) {
       <header className="top">
         <h1 className="brand">TheraTax</h1>
       </header>
-      <p className="lede">Sign in to log sessions, receipts, and invoices.</p>
+      <p className="lede">Create an account to log sessions, receipts, and invoices.</p>
       <form className="card stack" onSubmit={onRegister}>
-        <h2>Register</h2>
+        <h2>Create an account</h2>
         <label className="field">
           Name
           <input

@@ -28,7 +28,7 @@ export function TaxSummaryPage() {
 
   if (error !== '') {
     return (
-      <div className="stack">
+      <div className="stack reading-page">
         <h2>Tax summary</h2>
         <FormError message={error} />
       </div>
@@ -37,7 +37,7 @@ export function TaxSummaryPage() {
 
   if (summary === null) {
     return (
-      <div className="stack">
+      <div className="stack reading-page">
         <h2>Tax summary</h2>
         <p className="muted">Loading tax summary…</p>
       </div>
@@ -45,7 +45,7 @@ export function TaxSummaryPage() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack reading-page">
       <h2>Tax summary</h2>
       <section className="card">
         <p className="muted">Estimated tax</p>

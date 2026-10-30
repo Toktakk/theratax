@@ -39,7 +39,6 @@ export interface InvoiceLineResponse {
   amountPence: number;
   occurredOn: string;
   sourceTransactionId?: number;
-  sourceBonusId?: number;
 }
 
 export interface InvoiceResponse {
@@ -98,7 +97,6 @@ interface StoredLine {
   amountPence: number;
   occurredOn: Date;
   sourceTransactionId: number | null;
-  sourceBonusId: number | null;
   id: number;
 }
 
@@ -223,9 +221,6 @@ function storedLines(lines: StoredLine[]): InvoiceLineResponse[] {
       };
       if (line.sourceTransactionId !== null) {
         response.sourceTransactionId = line.sourceTransactionId;
-      }
-      if (line.sourceBonusId !== null) {
-        response.sourceBonusId = line.sourceBonusId;
       }
       return response;
     });

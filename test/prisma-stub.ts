@@ -13,6 +13,7 @@ export interface PrismaDouble {
   session: {
     findUnique: Fn;
     create: Fn;
+    deleteMany: Fn;
   };
   workplace: {
     create: Fn;
@@ -81,6 +82,7 @@ export function prismaDouble(): { prisma: PrismaService; db: PrismaDouble } {
     session: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      deleteMany: vi.fn(),
     },
     workplace: {
       create: vi.fn(),

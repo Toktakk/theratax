@@ -11,6 +11,7 @@ import {
 } from '../address.ts';
 import type { AddressDraft } from '../address.ts';
 import { downloadFile, messageOf, request } from '../api.ts';
+import { requestAll, requestList } from '../list-page.ts';
 import {
   EditClientForm,
   EditWorkplaceForm,
@@ -27,7 +28,6 @@ import type {
   InvoiceLine,
   InvoicePeriod,
   InvoicePreview,
-  ListResponse,
   RecipientKind,
   User,
   Workplace,
@@ -56,6 +56,8 @@ export function InvoicePage({
   onUserUpdated: (user: User) => void;
 }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoiceTotal, setInvoiceTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState('');
   const [formError, setFormError] = useState('');
@@ -105,10 +107,11 @@ export function InvoicePage({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    request<ListResponse<Invoice>>('/invoices?limit=100')
+    requestList<Invoice>('/invoices')
       .then((body) => {
         if (!cancelled) {
           setInvoices(body.items);
+          setInvoiceTotal(body.total);
           setPageError('');
         }
       })
@@ -131,10 +134,10 @@ export function InvoicePage({
     let cancelled = false;
     setWorkplacesLoading(true);
     setClientsLoading(true);
-    request<ListResponse<Workplace>>('/workplaces?limit=100')
-      .then((body) => {
+    requestAll<Workplace>('/workplaces')
+      .then((rows) => {
         if (!cancelled) {
-          setWorkplaces(body.items);
+          setWorkplaces(rows);
         }
       })
       .catch((error: unknown) => {
@@ -147,10 +150,10 @@ export function InvoicePage({
           setWorkplacesLoading(false);
         }
       });
-    request<ListResponse<Client>>('/clients?limit=100')
-      .then((body) => {
+    requestAll<Client>('/clients')
+      .then((rows) => {
         if (!cancelled) {
-          setClients(body.items);
+          setClients(rows);
         }
       })
       .catch((error: unknown) => {
@@ -245,6 +248,20 @@ export function InvoicePage({
     }
   }
 
+  async function showMoreInvoices() {
+    setLoadingMore(true);
+    setPageError('');
+    try {
+      const body = await requestList<Invoice>('/invoices', invoices.length);
+      setInvoices((current) => [...current, ...body.items]);
+      setInvoiceTotal(body.total);
+    } catch (error: unknown) {
+      setPageError(messageOf(error));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   async function pay(invoice: Invoice, receivedOn: string) {
     const paidOn = civilDateFromInput(receivedOn);
     if (paidOn === undefined) {
@@ -296,7 +313,7 @@ export function InvoicePage({
     recipientMissingAddress;
 
   return (
-    <div className="stack">
+    <div className="stack invoice-page">
       <h2>Invoices</h2>
       <form className="card stack" onSubmit={onSubmit}>
         {hasAddress(user) ? (
@@ -609,6 +626,18 @@ export function InvoicePage({
           </article>
         ))}
       </div>
+      {invoiceTotal > invoices.length ? (
+        <button
+          className="button-ghost"
+          type="button"
+          disabled={loadingMore}
+          onClick={() => {
+            void showMoreInvoices();
+          }}
+        >
+          {loadingMore ? 'Loading…' : `Show more (${invoices.length} of ${invoiceTotal})`}
+        </button>
+      ) : null}
     </div>
   );
 }

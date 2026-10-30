@@ -79,6 +79,10 @@ export async function request<T>(
     throw new ApiError(response.status, await readErrorMessage(response));
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   const payload: unknown = await response.json();
   return payload as T;
 }

@@ -1,6 +1,9 @@
+import { Transform } from 'class-transformer';
 import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { normalizeEmailValue } from '../normalize-email.js';
 
 export class RegisterDto {
+  @Transform(normalizeEmailValue)
   @IsEmail()
   email: string;
 

@@ -7,7 +7,7 @@ import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 const RESET_SQL =
-  'TRUNCATE TABLE "InvoiceLine", "Receipt", "HourExtra", "HourlyBonus", "Transaction", "Invoice", "Session", "Workplace", "Client", "User" RESTART IDENTITY CASCADE';
+  'TRUNCATE TABLE "InvoiceLine", "Receipt", "HourExtra", "Transaction", "Invoice", "Session", "Workplace", "Client", "User" RESTART IDENTITY CASCADE';
 
 export function assertTestDatabase(): void {
   const url = process.env.DATABASE_URL;

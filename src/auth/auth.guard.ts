@@ -8,7 +8,7 @@ export interface AuthenticatedRequest extends Request {
   user?: PublicUser;
 }
 
-function readBearer(header: string | undefined): string | null {
+export function readBearerToken(header: string | undefined): string | null {
   if (header === undefined) {
     return null;
   }
@@ -23,7 +23,7 @@ export async function userFromAuthorization(
   header: string | undefined,
   lookup: (token: string) => Promise<PublicUser | null>,
 ): Promise<PublicUser> {
-  const token = readBearer(header);
+  const token = readBearerToken(header);
   if (token === null) {
     throw new UnauthorizedException('Unauthorized');
   }

@@ -55,7 +55,7 @@ export function ProfilePage({ user, onUserUpdated }: ProfilePageProps) {
   }
 
   return (
-    <div className="stack">
+    <div className="stack reading-page">
       <h2>Profile</h2>
       <dl className="figures card">
         <div>

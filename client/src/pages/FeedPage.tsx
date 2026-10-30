@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { messageOf, request } from '../api.ts';
+import { requestAll, requestList } from '../list-page.ts';
 import { categoriesForMethod, categoryName } from '../category-filter.ts';
 import { FormError } from '../FormError.tsx';
 import {
@@ -26,7 +27,6 @@ import type {
   Client,
   DailyIncomeSummary,
   ExpenseCategory,
-  ListResponse,
   MassageType,
   MassageTypeDay,
   ReadyUser,
@@ -84,6 +84,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const [items, setItems] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [listLoading, setListLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [listError, setListError] = useState('');
   const [formError, setFormError] = useState('');
@@ -153,10 +154,10 @@ export function FeedPage({ user }: FeedPageProps) {
     let cancelled = false;
     setWorkplacesLoading(true);
     setClientsLoading(true);
-    request<ListResponse<Workplace>>('/workplaces?limit=100')
-      .then((body) => {
+    requestAll<Workplace>('/workplaces')
+      .then((rows) => {
         if (!cancelled) {
-          setWorkplaces(body.items);
+          setWorkplaces(rows);
         }
       })
       .catch((error: unknown) => {
@@ -169,10 +170,10 @@ export function FeedPage({ user }: FeedPageProps) {
           setWorkplacesLoading(false);
         }
       });
-    request<ListResponse<Client>>('/clients?limit=100')
-      .then((body) => {
+    requestAll<Client>('/clients')
+      .then((rows) => {
         if (!cancelled) {
-          setClients(body.items);
+          setClients(rows);
         }
       })
       .catch((error: unknown) => {
@@ -192,7 +193,7 @@ export function FeedPage({ user }: FeedPageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    request<ListResponse<Transaction>>('/transactions?limit=100')
+    requestList<Transaction>('/transactions')
       .then((body) => {
         if (!cancelled) {
           setItems(body.items);
@@ -436,6 +437,20 @@ export function FeedPage({ user }: FeedPageProps) {
     }
   }
 
+  async function showMoreEntries() {
+    setLoadingMore(true);
+    setListError('');
+    try {
+      const body = await requestList<Transaction>('/transactions', items.length);
+      setItems((current) => [...current, ...body.items]);
+      setTotal(body.total);
+    } catch (error: unknown) {
+      setListError(messageOf(error));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   const parsedHours = readHours(hours);
   const rated = massage ? rateOf(party, workplaces, clients) : null;
   const draft = massageDraft(
@@ -450,7 +465,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const hourHint = massage ? hourPreview(parsedHours, rated, massageType, customMassageType) : '';
 
   return (
-    <div className="stack">
+    <div className="stack feed-page">
       <div>
         <h2>Log</h2>
         <p className="muted">
@@ -682,7 +697,7 @@ export function FeedPage({ user }: FeedPageProps) {
         {!listLoading && listError === '' && visibleItems.length === 0 ? (
           <div className="empty card">
             <p>Nothing logged yet.</p>
-            <p className="muted">Record a session or an expense to start the feed.</p>
+            <p className="muted">Record a session or an expense to start the log.</p>
             <button
               className="button-primary"
               type="button"
@@ -694,11 +709,6 @@ export function FeedPage({ user }: FeedPageProps) {
               Log an entry
             </button>
           </div>
-        ) : null}
-        {total > items.length ? (
-          <p className="muted">
-            Showing the latest {items.length} of {total}.
-          </p>
         ) : null}
         <div className="list">
         {visibleItems.map((item) =>
@@ -728,6 +738,10 @@ export function FeedPage({ user }: FeedPageProps) {
               clients={clients}
               photo={storedValue(photos, item.id)}
               error={storedValue(rowErrors, item.id) ?? ''}
+              onDeleted={() => {
+                setEditingId(null);
+                setReloadKey((value) => value + 1);
+              }}
               onEdit={
                 item.type === 'income' && item.invoiceId === undefined
                   ? () => {
@@ -739,6 +753,18 @@ export function FeedPage({ user }: FeedPageProps) {
           ),
         )}
         </div>
+        {total > items.length ? (
+          <button
+            className="button-ghost"
+            type="button"
+            disabled={loadingMore}
+            onClick={() => {
+              void showMoreEntries();
+            }}
+          >
+            {loadingMore ? 'Loading…' : `Show more (${items.length} of ${total})`}
+          </button>
+        ) : null}
       </section>
       </div>
     </div>
@@ -857,6 +883,7 @@ function TransactionRow({
   clients,
   photo,
   error,
+  onDeleted,
   onEdit,
 }: {
   item: Transaction;
@@ -865,9 +892,25 @@ function TransactionRow({
   clients: readonly Client[];
   photo: ShownReceipt | undefined;
   error: string;
+  onDeleted: () => void;
   onEdit: (() => void) | undefined;
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const label = item.categorySlug === undefined ? null : categoryName(categories, item.categorySlug);
+
+  async function removeEntry() {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await request<void>(`/transactions/${item.id}`, { method: 'DELETE' });
+      onDeleted();
+    } catch (caught: unknown) {
+      setDeleteError(messageOf(caught));
+      setDeleting(false);
+    }
+  }
   const named = partyName(item, workplaces, clients);
   const detail = entryDetail(item);
   return (
@@ -892,13 +935,43 @@ function TransactionRow({
           )
         ) : null}
         <FormError message={error} />
-        {onEdit === undefined ? null : (
+        <FormError message={deleteError} />
+        {confirmingDelete ? (
           <div className="actions">
-            <button className="button-ghost" type="button" onClick={onEdit}>
-              Edit
+            <button className="button-ghost" type="button" disabled={deleting} onClick={() => void removeEntry()}>
+              {deleting ? 'Deleting…' : 'Delete entry'}
+            </button>
+            <button
+              className="button-ghost"
+              type="button"
+              disabled={deleting}
+              onClick={() => {
+                setConfirmingDelete(false);
+              }}
+            >
+              Cancel
             </button>
           </div>
-        )}
+        ) : onEdit !== undefined || item.invoiceId === undefined ? (
+          <div className="actions">
+            {onEdit === undefined ? null : (
+              <button className="button-ghost" type="button" onClick={onEdit}>
+                Edit
+              </button>
+            )}
+            {item.invoiceId === undefined ? (
+              <button
+                className="button-ghost"
+                type="button"
+                onClick={() => {
+                  setConfirmingDelete(true);
+                }}
+              >
+                Delete
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <p className="amount">{formatPounds(item.amountPence)}</p>
     </article>

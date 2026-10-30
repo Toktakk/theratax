@@ -24,7 +24,7 @@ The client runs at `http://localhost:5173`.
 
 | Path | Screen |
 | --- | --- |
-| `/` | Sign in. After onboarding, the same path is the feed. |
+| `/` | Sign in. After onboarding, the same path is the log. |
 | `/register` | Create an account. |
 | (no path) | Onboarding replaces the app until practice type and vehicle method are saved. |
 | `/workplaces` | Spas, clinics, and private clients, with an hour rate. |
@@ -45,11 +45,11 @@ The client runs at `http://localhost:5173`.
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/feedPage.png" alt="Feed" width="280"><br>
-      <strong>Feed</strong>
+      <img src="docs/screenshots/logPage.png" alt="Log" width="280"><br>
+      <strong>Log</strong>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/workplacesPage.png" alt="Workplaces" width="280"><br>
+      <img src="docs/screenshots/placesPage.png" alt="Workplaces" width="280"><br>
       <strong>Workplaces</strong>
     </td>
   </tr>
@@ -59,13 +59,20 @@ The client runs at `http://localhost:5173`.
       <strong>Invoices</strong>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/taxSummaryPage.png" alt="Estimated tax" width="280"><br>
+      <img src="docs/screenshots/taxPage.png" alt="Estimated tax" width="280"><br>
       <strong>Estimated tax</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="docs/screenshots/invoiceExample.png" alt="Invoice PDF TT-0010 for ABC Spa" width="560"><br>
+      <strong>Invoice PDF</strong><br>
+      TT-0010 for ABC Spa, built from the logged day: one Deep Tissue session and a bonus, £61.00, marked paid.
     </td>
   </tr>
 </table>
 
-A signed-in session is a bearer token in `localStorage`, sent as `Authorization: Bearer <token>`. It expires after 7 days.
+A signed-in session is a bearer token in `localStorage`, sent as `Authorization: Bearer <token>`. It expires after 7 days. Log out deletes that session, so the token stops working.
 
 ## Stack
 
@@ -125,7 +132,7 @@ npm run start:dev
 npm run dev --prefix client
 ```
 
-`GET http://localhost:3000/` returns the text `Hello World!`. That is the process check. Product routes are listed in the API spec. The browser allows the client origin `http://localhost:5173` only.
+`GET http://localhost:3000/` returns `{ "name": "TheraTax" }`. That is the process check. Product routes are listed in the API spec. The browser allows the client origin `http://localhost:5173` only.
 
 On startup the API seeds the eight expense categories and creates the receipts bucket if it is missing. Categories are fixed. The browser suggests one from the note. There is no hint endpoint.
 
@@ -161,7 +168,7 @@ These ten cases are the hand-in record. Automated rows were run on 27 October 20
 | Bad input | Massage fields on an expense, and Other with no custom name | `400` with the field message | Passed in `test/transactions.e2e-spec.ts` |
 | Bad input | Workplace with an empty name, an unknown kind, or no address | `400` | Passed in `test/workplaces.e2e-spec.ts` |
 | Boundary | Save the same spa name twice, then open that id as another user | The duplicate is `409`. The other user gets `404` | Passed in `test/workplaces.e2e-spec.ts` |
-| Install | `docker compose up -d`, install, migrate, generate, start the API and the client | `GET /` is `Hello World!` and the client opens at port 5173 | Follow the commands above on the marker's machine |
+| Install | `docker compose up -d`, install, migrate, generate, start the API and the client | `GET /` is `{ "name": "TheraTax" }` and the client opens at port 5173 | Follow the commands above on the marker's machine |
 
 ## Layout
 

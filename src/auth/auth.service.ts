@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import type { OnboardingDto } from './dto/onboarding.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
+import { normalizeEmail } from './normalize-email.js';
 import type { AuthResponse, PublicUser } from './public-user.js';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -52,8 +53,9 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(input: RegisterDto): Promise<AuthResponse> {
+    const email = normalizeEmail(input.email);
     const existing = await this.prisma.user.findUnique({
-      where: { email: input.email },
+      where: { email },
     });
     if (existing !== null) {
       throw new ConflictException('Email already registered');
@@ -61,7 +63,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await this.prisma.user.create({
       data: {
-        email: input.email,
+        email,
         name: input.name,
         passwordHash,
       },
@@ -72,7 +74,7 @@ export class AuthService {
 
   async login(input: LoginDto): Promise<AuthResponse> {
     const user = await this.prisma.user.findUnique({
-      where: { email: input.email },
+      where: { email: normalizeEmail(input.email) },
     });
     const matches =
       user !== null && (await bcrypt.compare(input.password, user.passwordHash));
@@ -122,6 +124,10 @@ export class AuthService {
       },
     });
     return toPublicUser(user);
+  }
+
+  async revokeSession(token: string): Promise<void> {
+    await this.prisma.session.deleteMany({ where: { token } });
   }
 
   private async createSession(userId: number): Promise<string> {
