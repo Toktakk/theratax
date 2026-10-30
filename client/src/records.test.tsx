@@ -172,6 +172,167 @@ describe('records', () => {
     expect(await screen.findByText('Total £67.00')).toBeInTheDocument();
   });
 
+  it('keeps Enter in a workplace address field from issuing the invoice', async () => {
+    const actor = userEvent.setup();
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path.startsWith('/invoices/preview')) {
+        return {
+          recipientKind: 'spa',
+          recipientName: 'North Spa',
+          workplaceId: 3,
+          period: 'day',
+          periodStart: '01-05-2026',
+          periodEnd: '01-05-2026',
+          amountPence: 6700,
+          lines: [
+            {
+              kind: 'service',
+              description: 'Swedish',
+              quantity: 1,
+              quantityUnit: 'session',
+              ratePence: 6000,
+              amountPence: 6000,
+              occurredOn: '01-05-2026',
+            },
+          ],
+        };
+      }
+      if (path.startsWith('/workplaces')) {
+        return { items: [workplace], total: 1, skip: 0, limit: 100 };
+      }
+      return emptyPage;
+    });
+    render(
+      <MemoryRouter>
+        <InvoicePage user={user} onUserUpdated={() => undefined} />
+      </MemoryRouter>,
+    );
+    await actor.click(await screen.findByRole('radio', { name: 'Spa' }));
+    await actor.selectOptions(screen.getByRole('combobox', { name: 'Spa' }), '3');
+    await actor.click(screen.getByRole('radio', { name: 'Daily' }));
+    await actor.type(screen.getByLabelText('Date'), '2026-05-01');
+    expect(await screen.findByText('Total £67.00')).toBeInTheDocument();
+    await actor.type(screen.getByLabelText('Town'), 'Leeds{Enter}');
+    expect(screen.getByText('Enter an hour rate.')).toBeInTheDocument();
+    expect(request).not.toHaveBeenCalledWith('/invoices', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('saves the workplace that is selected when the address form is open', async () => {
+    const actor = userEvent.setup();
+    const bare = (id: number, name: string) => ({
+      id,
+      name,
+      kind: 'spa' as const,
+      hourRatePence: 2500,
+      hourExtras: [],
+      createdAt: '2026-05-01T10:00:00.000Z',
+      updatedAt: '2026-05-01T10:00:00.000Z',
+    });
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path.startsWith('/workplaces') && !path.includes('/workplaces/')) {
+        return { items: [bare(1, 'Spa A'), bare(2, 'Spa B')], total: 2, skip: 0, limit: 100 };
+      }
+      if (path === '/workplaces/2') {
+        return { ...bare(2, 'Spa B'), addressLine1: '2 Clinic Road', town: 'York', postcode: 'YO1 7HH' };
+      }
+      return emptyPage;
+    });
+    render(
+      <MemoryRouter>
+        <InvoicePage user={user} onUserUpdated={() => undefined} />
+      </MemoryRouter>,
+    );
+    await actor.click(await screen.findByRole('radio', { name: 'Spa' }));
+    await actor.selectOptions(screen.getByRole('combobox', { name: 'Spa' }), '1');
+    const names = () => screen.getAllByLabelText('Workplace name');
+    expect(names()[1]).toHaveValue('Spa A');
+    await actor.clear(names()[1]);
+    await actor.type(names()[1], 'Hijacked');
+    await actor.selectOptions(screen.getByRole('combobox', { name: 'Spa' }), '2');
+    expect(names()[1]).toHaveValue('Spa B');
+    await actor.type(screen.getAllByLabelText('Address line 1')[1], '2 Clinic Road');
+    await actor.type(screen.getAllByLabelText('Town')[1], 'York');
+    await actor.type(screen.getAllByLabelText('Postcode')[1], 'YO1 7HH');
+    await actor.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    expect(request).toHaveBeenCalledWith('/workplaces/2', {
+      method: 'PATCH',
+      json: {
+        name: 'Spa B',
+        hourRatePence: 2500,
+        hourExtras: [],
+        addressLine1: '2 Clinic Road',
+        town: 'York',
+        postcode: 'YO1 7HH',
+      },
+    });
+    expect(request).not.toHaveBeenCalledWith('/workplaces/1', expect.anything());
+  });
+
+  it('asks the server for expenses instead of hiding them on the page', async () => {
+    const actor = userEvent.setup();
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path.startsWith('/transactions?type=expense')) {
+        return {
+          items: [
+            {
+              id: 2,
+              type: 'expense',
+              occurredOn: '02-05-2026',
+              amountPence: 500,
+              hasReceipt: false,
+              note: 'Parking',
+            },
+          ],
+          total: 1,
+          skip: 0,
+          limit: 100,
+        };
+      }
+      if (path.startsWith('/expense-categories')) {
+        return [];
+      }
+      if (path.startsWith('/transactions')) {
+        return {
+          items: [
+            {
+              id: 8,
+              type: 'income',
+              occurredOn: '01-05-2026',
+              amountPence: 1200,
+              hasReceipt: false,
+              note: 'Morning session',
+            },
+          ],
+          total: 1,
+          skip: 0,
+          limit: 100,
+        };
+      }
+      if (path.startsWith('/income/summary')) {
+        return {
+          date: '27-10-2026',
+          basePence: 0,
+          additionalFeePence: 0,
+          bonusPence: 0,
+          totalPence: 0,
+          byWorkplace: [],
+          byMassageType: [],
+        };
+      }
+      return emptyPage;
+    });
+    render(
+      <MemoryRouter>
+        <FeedPage user={user} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Morning session')).toBeInTheDocument();
+    await actor.click(screen.getByRole('radio', { name: 'Expense' }));
+    expect(await screen.findByText('Parking')).toBeInTheDocument();
+    expect(screen.queryByText('Morning session')).not.toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith('/transactions?type=expense&limit=100&skip=0');
+  });
+
   it('shows tax figures from the summary', async () => {
     vi.mocked(request).mockResolvedValue({
       taxYear: '2026-27',

@@ -315,7 +315,7 @@ export function InvoicePage({
   return (
     <div className="stack invoice-page">
       <h2>Invoices</h2>
-      <form className="card stack" onSubmit={onSubmit}>
+      <div className="card stack">
         {hasAddress(user) ? (
           <p className="muted">
             Business address: {formatAddress(user)}{' '}
@@ -390,6 +390,7 @@ export function InvoicePage({
             />
             {chosenWorkplace !== undefined && !hasAddress(chosenWorkplace) ? (
               <EditWorkplaceForm
+                key={chosenWorkplace.id}
                 workplace={chosenWorkplace}
                 onSaved={(workplace) => {
                   setWorkplaces((current) =>
@@ -431,6 +432,7 @@ export function InvoicePage({
             />
             {chosenClient !== undefined && !hasAddress(chosenClient) ? (
               <EditClientForm
+                key={chosenClient.id}
                 client={chosenClient}
                 onSaved={(client) => {
                   setClients((current) => current.map((item) => (item.id === client.id ? client : item)));
@@ -443,6 +445,7 @@ export function InvoicePage({
           </>
         ) : null}
         <FormError message={directoryError} />
+        <form className="stack" onSubmit={onSubmit}>
         <fieldset>
           <legend>Period</legend>
           <div className="inline-choices">
@@ -537,7 +540,8 @@ export function InvoicePage({
         <button className="button-primary" type="submit" disabled={createDisabled}>
           {saving ? 'Creating…' : 'Create invoice'}
         </button>
-      </form>
+        </form>
+      </div>
       <FormError message={pageError} />
       {loading && invoices.length === 0 ? <p className="muted">Loading invoices…</p> : null}
       {!loading && pageError === '' && invoices.length === 0 ? (
@@ -889,13 +893,20 @@ function BusinessAddressForm({ onSaved }: { onSaved: (user: User) => void }) {
   }
 
   return (
-    <div className="subcard">
+    <form
+      className="subcard"
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void save();
+      }}
+    >
       <p className="muted">Add your business address before issuing an invoice.</p>
       <AddressFields draft={draft} onChange={setDraft} />
       <FormError message={error} />
-      <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+      <button className="button-ghost" type="submit" disabled={saving}>
         {saving ? 'Saving…' : 'Save address'}
       </button>
-    </div>
+    </form>
   );
 }

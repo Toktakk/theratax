@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { AddressFields } from './address-fields.tsx';
 import {
   addressError,
@@ -85,7 +86,13 @@ export function SaveWorkplaceForm({
   const label = picked === 'spa' ? 'Save spa' : 'Save clinic';
 
   return (
-    <div className="subcard">
+    <form
+      className="subcard"
+      onSubmit={(event) => {
+        keepSubmitHere(event);
+        void save();
+      }}
+    >
       <p className="muted">Save a spa or clinic once, then choose it on the next rows.</p>
       <label className="field">
         Workplace name
@@ -94,12 +101,6 @@ export function SaveWorkplaceForm({
           maxLength={200}
           onChange={(event) => {
             setName(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              void save();
-            }
           }}
         />
       </label>
@@ -130,10 +131,10 @@ export function SaveWorkplaceForm({
         </label>
       ) : null}
       <FormError message={error} />
-      <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+      <button className="button-ghost" type="submit" disabled={saving}>
         {saving ? 'Saving…' : label}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -191,7 +192,13 @@ export function EditWorkplaceForm({
   }
 
   return (
-    <div className="subcard">
+    <form
+      className="subcard"
+      onSubmit={(event) => {
+        keepSubmitHere(event);
+        void save();
+      }}
+    >
       <p className="muted">{workplace.kind === 'spa' ? 'Spa' : 'Clinic'}</p>
       <label className="field">
         Workplace name
@@ -214,14 +221,14 @@ export function EditWorkplaceForm({
       <AddressFields draft={address} onChange={setAddress} />
       <FormError message={error} />
       <div className="actions">
-        <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+        <button className="button-ghost" type="submit" disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button className="button-ghost" type="button" disabled={saving} onClick={onCancel}>
           Cancel
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -275,7 +282,13 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
   }
 
   return (
-    <div className="subcard">
+    <form
+      className="subcard"
+      onSubmit={(event) => {
+        keepSubmitHere(event);
+        void save();
+      }}
+    >
       <p className="muted">Save a client once, then choose that person on the next rows.</p>
       <label className="field">
         Client name
@@ -284,12 +297,6 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
           maxLength={200}
           onChange={(event) => {
             setName(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              void save();
-            }
           }}
         />
       </label>
@@ -303,10 +310,10 @@ export function SaveClientForm({ onCreated }: { onCreated: (client: Client) => v
       <HourExtrasEditor extras={extras} onChange={setExtras} disabled={saving} />
       <AddressFields draft={address} onChange={setAddress} />
       <FormError message={error} />
-      <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+      <button className="button-ghost" type="submit" disabled={saving}>
         {saving ? 'Saving…' : 'Save client'}
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -364,7 +371,13 @@ export function EditClientForm({
   }
 
   return (
-    <div className="subcard">
+    <form
+      className="subcard"
+      onSubmit={(event) => {
+        keepSubmitHere(event);
+        void save();
+      }}
+    >
       <label className="field">
         Client name
         <input
@@ -386,14 +399,14 @@ export function EditClientForm({
       <AddressFields draft={address} onChange={setAddress} />
       <FormError message={error} />
       <div className="actions">
-        <button className="button-ghost" type="button" disabled={saving} onClick={() => void save()}>
+        <button className="button-ghost" type="submit" disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button className="button-ghost" type="button" disabled={saving} onClick={onCancel}>
           Cancel
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -444,7 +457,17 @@ function HourExtrasEditor({
   }
 
   return (
-    <fieldset disabled={disabled}>
+    <fieldset
+      disabled={disabled}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' || !(event.target instanceof HTMLInputElement)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        addExtra();
+      }}
+    >
       <legend>Extra per hour</legend>
       <div className="list">
         {shown.map((extra) => (
@@ -545,6 +568,11 @@ function MoneyFields({
       </div>
     </fieldset>
   );
+}
+
+function keepSubmitHere(event: FormEvent<HTMLFormElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function extrasPayload(extras: readonly HourExtra[]): HourExtra[] {

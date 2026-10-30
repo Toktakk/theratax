@@ -116,6 +116,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
   const receiptRef = useRef<HTMLInputElement>(null);
+  const listRequest = useRef(0);
 
   const allowed =
     categories === null ? [] : categoriesForMethod(categories, user.expenseMethod);
@@ -124,7 +125,7 @@ export function FeedPage({ user }: FeedPageProps) {
   const selected = allowed.find((category) => category.slug === categorySlug);
   const mileage = type === 'expense' && selected?.kind === 'mileage';
   const massage = type === 'income' && isMassageType(massageType);
-  const visibleItems = items.filter((item) => item.type === type);
+  const listPath = `/transactions?type=${type}`;
   const receiptKey = items
     .filter((item) => item.hasReceipt)
     .map((item) => item.id)
@@ -192,29 +193,32 @@ export function FeedPage({ user }: FeedPageProps) {
   }, []);
 
   useEffect(() => {
+    const requestId = listRequest.current + 1;
+    listRequest.current = requestId;
     let cancelled = false;
-    requestList<Transaction>('/transactions')
+    setListLoading(true);
+    requestList<Transaction>(listPath)
       .then((body) => {
-        if (!cancelled) {
+        if (!cancelled && listRequest.current === requestId) {
           setItems(body.items);
           setTotal(body.total);
           setListError('');
         }
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
+        if (!cancelled && listRequest.current === requestId) {
           setListError(messageOf(error));
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (!cancelled && listRequest.current === requestId) {
           setListLoading(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, listPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -438,16 +442,25 @@ export function FeedPage({ user }: FeedPageProps) {
   }
 
   async function showMoreEntries() {
+    const requestId = listRequest.current;
+    const skip = items.length;
     setLoadingMore(true);
     setListError('');
     try {
-      const body = await requestList<Transaction>('/transactions', items.length);
+      const body = await requestList<Transaction>(listPath, skip);
+      if (listRequest.current !== requestId) {
+        return;
+      }
       setItems((current) => [...current, ...body.items]);
       setTotal(body.total);
     } catch (error: unknown) {
-      setListError(messageOf(error));
+      if (listRequest.current === requestId) {
+        setListError(messageOf(error));
+      }
     } finally {
-      setLoadingMore(false);
+      if (listRequest.current === requestId) {
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -494,6 +507,9 @@ export function FeedPage({ user }: FeedPageProps) {
                   checked={type === 'income'}
                   onChange={() => {
                     setType('income');
+                    setItems([]);
+                    setTotal(0);
+                    setListLoading(true);
                   }}
                 />
                 Income
@@ -507,6 +523,9 @@ export function FeedPage({ user }: FeedPageProps) {
                   onChange={() => {
                     setType('expense');
                     setEditingId(null);
+                    setItems([]);
+                    setTotal(0);
+                    setListLoading(true);
                   }}
                 />
                 Expense
@@ -694,7 +713,7 @@ export function FeedPage({ user }: FeedPageProps) {
         <h3>Entries</h3>
         <FormError message={listError} />
         {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}
-        {!listLoading && listError === '' && visibleItems.length === 0 ? (
+        {!listLoading && listError === '' && items.length === 0 ? (
           <div className="empty card">
             <p>Nothing logged yet.</p>
             <p className="muted">Record a session or an expense to start the log.</p>
@@ -711,7 +730,7 @@ export function FeedPage({ user }: FeedPageProps) {
           </div>
         ) : null}
         <div className="list">
-        {visibleItems.map((item) =>
+        {items.map((item) =>
           editingId === item.id && item.type === 'income' ? (
             <IncomeEditForm
               key={item.id}
