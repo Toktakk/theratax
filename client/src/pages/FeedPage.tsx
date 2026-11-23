@@ -485,16 +485,8 @@ export function FeedPage({ user }: FeedPageProps) {
           {practiceTypeLabel(user.practiceType)} · {expenseMethodLabel(user.expenseMethod)}
         </p>
       </div>
-      <section className="stack">
-        <h3>Daily summary{summary === null ? '' : ` · ${summary.date}`}</h3>
-        {summaryLoading ? <p className="muted">Loading summary…</p> : null}
-        {summaryError !== '' ? <FormError message={summaryError} /> : null}
-        {summary !== null && summaryError === '' ? (
-          <SummaryFigures summary={shownSummary(summary, draft)} />
-        ) : null}
-      </section>
       <div className="feed-layout">
-      <div className="card stack">
+      <div className="card stack feed-form">
         <form ref={formRef} className="stack" autoComplete="off" onSubmit={onSubmit}>
           <fieldset className="segment">
             <legend className="sr-only">Type</legend>
@@ -709,7 +701,15 @@ export function FeedPage({ user }: FeedPageProps) {
           </button>
         </form>
       </div>
-      <section className="stack">
+      <section className="stack feed-summary">
+        <h3>Daily summary{summary === null ? '' : ` · ${summary.date}`}</h3>
+        {summaryLoading ? <p className="muted">Loading summary…</p> : null}
+        {summaryError !== '' ? <FormError message={summaryError} /> : null}
+        {summary !== null && summaryError === '' ? (
+          <SummaryFigures summary={shownSummary(summary, draft)} />
+        ) : null}
+      </section>
+      <section className="stack feed-entries">
         <h3>Entries</h3>
         <FormError message={listError} />
         {listLoading && items.length === 0 ? <p className="muted">Loading entries…</p> : null}

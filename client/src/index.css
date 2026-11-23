@@ -900,6 +900,24 @@ ol {
     align-items: start;
   }
 
+  .feed-layout {
+    grid-template-areas:
+      'form entries'
+      'summary summary';
+  }
+
+  .feed-form {
+    grid-area: form;
+  }
+
+  .feed-entries {
+    grid-area: entries;
+  }
+
+  .feed-summary {
+    grid-area: summary;
+  }
+
   .directory-layout > h2 {
     grid-column: 1 / -1;
   }
