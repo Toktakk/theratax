@@ -253,7 +253,7 @@ describe('records', () => {
     await actor.type(screen.getAllByLabelText('Address line 1')[1], '2 Clinic Road');
     await actor.type(screen.getAllByLabelText('Town')[1], 'York');
     await actor.type(screen.getAllByLabelText('Postcode')[1], 'YO1 7HH');
-    await actor.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await actor.click(screen.getByRole('button', { name: 'Save' }));
     expect(request).toHaveBeenCalledWith('/workplaces/2', {
       method: 'PATCH',
       json: {
