@@ -1,4 +1,5 @@
 import { InternalServerErrorException } from '@nestjs/common';
+import { S3Client } from '@aws-sdk/client-s3';
 import { receiptLinkExpiry } from './receipt-link.js';
 import {
   RECEIPT_OPEN_MESSAGE,
@@ -28,6 +29,34 @@ describe('receipt links', () => {
     restore('S3_ENDPOINT', previous.S3_ENDPOINT);
     restore('S3_ACCESS_KEY', previous.S3_ACCESS_KEY);
     restore('S3_SECRET_KEY', previous.S3_SECRET_KEY);
+  });
+
+  it('keeps running when the Space key cannot create a bucket', async () => {
+    const denied = new Error('Access Denied');
+    denied.name = 'AccessDenied';
+    const send = vi
+      .spyOn(S3Client.prototype, 'send')
+      .mockRejectedValue(denied);
+    try {
+      const service = new UploadService();
+      await expect(service.onModuleInit()).resolves.toBeUndefined();
+    } finally {
+      send.mockRestore();
+    }
+  });
+
+  it('still stops startup when the receipt store cannot be reached', async () => {
+    const send = vi
+      .spyOn(S3Client.prototype, 'send')
+      .mockRejectedValue(new Error('connect ECONNREFUSED'));
+    try {
+      const service = new UploadService();
+      await expect(service.onModuleInit()).rejects.toThrow(
+        'connect ECONNREFUSED',
+      );
+    } finally {
+      send.mockRestore();
+    }
   });
 
   it('expires a signed link 15 minutes after it is issued', () => {
